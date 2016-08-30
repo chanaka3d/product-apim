@@ -45,6 +45,7 @@
             <class name="org.wso2.am.integration.tests.api.lifecycle.ChangeAPIEndPointURLTestCase"/>
             <class name="org.wso2.am.integration.tests.api.lifecycle.ChangeAPITagsTestCase"/>
             <class name="org.wso2.am.integration.tests.api.lifecycle.ChangeAPITierAndTestInvokingTestCase"/>
+            <class name="org.wso2.am.integration.tests.api.lifecycle.InvokeAPIUsingOldThrottlingWithWSClient"/>
             <class name="org.wso2.am.integration.tests.api.lifecycle.PluggableVersioningStrategyTestCase"/>
             <!--&lt;!&ndash;&lt;!&ndash;Disable the test case because of APIMANAGER-4191&ndash;&gt;&ndash;&gt;-->
             <!-- <class name="org.wso2.am.integration.tests.api.lifecycle.ChangeApplicationTierAndTestInvokingTestCase"/>-->
