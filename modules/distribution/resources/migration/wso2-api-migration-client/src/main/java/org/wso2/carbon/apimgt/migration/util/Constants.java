@@ -184,6 +184,12 @@ public class Constants {
     public static final String TIER_ATTRIBUTES_TAG = "Attributes";
     public static final String TIER_BILLING_PLAN_FREE = "FREE";
     public static final String TIER_STOP_ON_QUOTA_TRUE = "true";
+    public static final String TIER_ID_TAG = "ID";
+    public static final String TIER_MAX_COUNT_TAG = "MaximumCount";
+    public static final String TIER_UNIT_COUNT_TAG = "UnitTime";
+    public static final String TIER_BILLING_PLAN_TAG = "x-wso2-BillingPlan";
+    public static final String TIER_STOP_ON_QUOTA_TAG = "x-wso2-StopOnQuotaReach";
+
 
     //database types
     public static final String DB_TYPE_ORACLE = "oracle";
@@ -260,5 +266,20 @@ public class Constants {
     public static final String SYNAPSE_HTTP_XML_ELEMENT = "http";
     public static final String SYNAPSE_URI_TEMPLATE_ATTRIBUTE_NAME = "uri-template";
     public static final String SYNAPSE_IS_STAT_ENABLED_PROPERTY_NAME = "isStatEnabled";
+
+
+    // Table Names
+
+    public static final String AM_POLICY_SUBSCRIPTION = "AM_POLICY_SUBSCRIPTION";
+    public static final String AM_POLICY_APPLICATION = "AM_POLICY_APPLICATION";
+    public static final String AM_API_THROTTLE_POLICY = "AM_API_THROTTLE_POLICY";
+
+
+
+    public static final String TIER_DESCRIPTION = "Allows {0} request per minute";
+    public static final String TIER_API_LEVEL = "apiLevel";
+    public static final String TIER_REQUEST_COUNT = "requestCount";
+    public static final String TIER_TIME_UNIT_MINUTE = "min";
+
 
 }

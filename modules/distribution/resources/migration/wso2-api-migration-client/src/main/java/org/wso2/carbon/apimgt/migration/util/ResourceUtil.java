@@ -83,7 +83,7 @@ public class ResourceUtil {
      * @param apiProvider provider name of the API
      * @return swagger v2.0 resource location as a string
      */
-    public static String getSwagger2ResourceLocation(String apiName, String apiVersion, String apiProvider) {
+    public static String    getSwagger2ResourceLocation(String apiName, String apiVersion, String apiProvider) {
         return APIConstants.API_ROOT_LOCATION + RegistryConstants.PATH_SEPARATOR + apiProvider
                 + RegistryConstants.PATH_SEPARATOR + apiName + RegistryConstants.PATH_SEPARATOR + apiVersion
                 + RegistryConstants.PATH_SEPARATOR + "swagger.json";

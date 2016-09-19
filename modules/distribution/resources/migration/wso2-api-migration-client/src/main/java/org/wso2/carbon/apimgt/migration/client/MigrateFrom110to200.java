@@ -24,6 +24,10 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 import org.wso2.carbon.apimgt.api.APIManagementException;
 import org.wso2.carbon.apimgt.api.model.API;
 import org.wso2.carbon.apimgt.api.model.APIIdentifier;
@@ -34,6 +38,7 @@ import org.wso2.carbon.apimgt.migration.APIMigrationException;
 import org.wso2.carbon.apimgt.migration.client._110Specific.ResourceModifier;
 import org.wso2.carbon.apimgt.migration.client._200Specific.ResourceModifier200;
 import org.wso2.carbon.apimgt.migration.client._110Specific.dto.*;
+import org.wso2.carbon.apimgt.migration.client._200Specific.model.Policy;
 import org.wso2.carbon.apimgt.migration.client.internal.ServiceHolder;
 import org.wso2.carbon.apimgt.migration.util.Constants;
 import org.wso2.carbon.apimgt.migration.util.RegistryService;
@@ -55,7 +60,9 @@ import javax.xml.stream.XMLStreamException;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.sql.*;
+import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class MigrateFrom110to200 extends MigrationClientBase implements MigrationClient {
 
@@ -137,15 +144,18 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
      * @throws APIMigrationException throws if any exception occured
      */
     @Override
-    public void optionalMigration(List<String> options) throws APIMigrationException {
+    public void tierMigration(List<String> options) throws APIMigrationException {
         if (options.contains("migrateThrottling")) {
             for (Tenant tenant : getTenantsArray()) {
                 String apiPath = ResourceUtil.getApiPath(tenant.getId(), tenant.getDomain());
                 List<SynapseDTO> synapseDTOs = ResourceUtil.getVersionedAPIs(apiPath);
-                ResourceModifier200.updateThrottleHandler(synapseDTOs);
+                ResourceModifier200.updateThrottleHandler(synapseDTOs); // Update Throttle Handler
 
-                for (SynapseDTO synapseDTO : synapseDTOs) {
-                    ResourceModifier200.transformXMLDocument(synapseDTO.getDocument(), synapseDTO.getFile());
+                //Read Throttling Tier from Registry and update databases
+                try {
+                    readThrottlingTiersFromRegistry(tenant);
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
             log.info("Throttling migration is finished.");
@@ -165,57 +175,6 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
     }
 
 
-    private void updateAuthzUserName() throws SQLException {
-        log.info("Updating Authz UserName for API Manager started");
-        Connection connection = null;
-        PreparedStatement selectStatement = null;
-        ResultSet resultSet = null;
-
-        ArrayList<AccessTokenInfo> updateValues = new ArrayList<>();
-        try {
-            String selectQuery = "SELECT DISTINCT AUTHZ_USER FROM IDN_OAUTH2_ACCESS_TOKEN WHERE AUTHZ_USER LIKE '%@%'";
-
-            connection = APIMgtDBUtil.getConnection();
-            selectStatement = connection.prepareStatement(selectQuery);
-            resultSet = selectStatement.executeQuery();
-
-            while (resultSet.next()) {
-                String authzUser = resultSet.getString("AUTHZ_USER");
-
-                String usernameWithoutDomain = MultitenantUtils.getTenantAwareUsername(authzUser);
-
-                AccessTokenInfo accessTokenInfo = new AccessTokenInfo(usernameWithoutDomain, authzUser);
-                updateValues.add(accessTokenInfo);
-            }
-
-        } finally {
-            APIMgtDBUtil.closeAllConnections(selectStatement, connection, resultSet);
-        }
-
-        if (!updateValues.isEmpty()) { // If user names that need to be updated exist
-            PreparedStatement updateStatement = null;
-
-            try {
-                connection = APIMgtDBUtil.getConnection();
-                connection.setAutoCommit(false);
-
-                updateStatement = connection.prepareStatement("UPDATE IDN_OAUTH2_ACCESS_TOKEN SET AUTHZ_USER = ?" +
-                                                                " WHERE AUTHZ_USER = ?");
-
-                for (AccessTokenInfo accessTokenInfo : updateValues) {
-                    updateStatement.setString(1, accessTokenInfo.usernameWithoutDomain);
-                    updateStatement.setString(2, accessTokenInfo.authzUser);
-                    updateStatement.addBatch();
-                }
-                updateStatement.executeBatch();
-
-                connection.commit();
-            } finally {
-                APIMgtDBUtil.closeAllConnections(updateStatement, connection, null);
-            }
-        }
-        log.info("Updating Authz UserName for API Manager completed");
-    }
 
     private void decryptEncryptedConsumerKeys() throws SQLException {
         log.info("Decrypting encrypted consumer keys started");
@@ -1068,5 +1027,330 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
         securityDefinitionObject.put("default", sec);
         return securityDefinitionObject;
     }
+
+    private void readThrottlingTiersFromRegistry(Tenant tenant) throws APIMigrationException  {
+        registryService.startTenantFlow(tenant);
+        Connection connection = null;
+        try {
+            connection = APIMgtDBUtil.getConnection();
+            connection.setAutoCommit(false);
+
+            // update or insert all three tiers
+            readTiersAndUpdateDatabase(tenant, APIConstants.API_TIER_LOCATION, connection, Constants.AM_POLICY_SUBSCRIPTION);
+            readTiersAndUpdateDatabase(tenant, APIConstants.APP_TIER_LOCATION, connection, Constants.AM_POLICY_APPLICATION);
+            readTiersAndUpdateDatabase(tenant, APIConstants.RES_TIER_LOCATION, connection, Constants.AM_API_THROTTLE_POLICY);
+
+            connection.commit();
+        } catch (SQLException ex)   {
+            log.error("Error occurred while doing database operations ", ex);
+            throw new APIMigrationException(ex);
+        } finally {
+            APIMgtDBUtil.closeAllConnections(null, connection, null);
+        }
+
+        registryService.endTenantFlow();
+
+    }
+
+    private void readTiersAndUpdateDatabase(Tenant tenant, String tierFile, Connection connection, String tableName)
+            throws APIMigrationException   {
+        String apiTier;
+        try {
+            apiTier = ResourceUtil.getResourceContent(registryService.getGovernanceRegistryResource(tierFile));
+        } catch (UserStoreException ex)    {
+            log.error("Error occurred while reading Registry for " + tierFile + ", ", ex);
+            throw new APIMigrationException(ex);
+        } catch (RegistryException ex)    {
+            log.error("Error occurred while reading Registry for " + tierFile + ", ", ex);
+            throw new APIMigrationException(ex);
+        }
+
+        Document doc = ResourceUtil.buildDocument(apiTier, tierFile);
+
+        if (doc != null) {
+            Element rootElement = doc.getDocumentElement();
+
+            Element throttleAssertion = (Element) rootElement
+                    .getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS,
+                                            Constants.TIER_MEDIATOR_THROTTLE_ASSERTION_TAG).item(0);
+
+            NodeList tierNodes = throttleAssertion.getChildNodes();
+
+
+            for (int i = 0; i < tierNodes.getLength(); ++i) {
+                Node tierNode = tierNodes.item(i);
+
+                if (tierNode.getNodeType() == Node.ELEMENT_NODE) {
+                    Policy policy = readPolicyFromRegistry(tierNode);
+                    updateThrottlingEntriesInDatabase(connection, policy, tenant, tableName);
+                }
+            }
+        }
+    }
+
+    private Policy readPolicyFromRegistry(Node tierNode) {
+        Element tierTag = (Element) tierNode;
+
+        Node throttleID = tierTag.getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS, Constants.TIER_ID_TAG).item(0);
+
+        Policy policy = new Policy();
+        policy.setName(throttleID.getTextContent());
+        policy.setType(((Element)throttleID).getAttribute("throttle:type"));
+
+        Element childPolicy = (Element) tierTag.getElementsByTagNameNS(Constants.TIER_WSP_XMLNS,
+                                                                       Constants.TIER_POLICY_TAG).item(0);
+
+        Element controlTag = (Element) childPolicy.getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS,
+                                                                          Constants.TIER_CONTROL_TAG)
+                .item(0);
+
+        Element controlPolicyTag = (Element) controlTag.getElementsByTagNameNS(Constants.TIER_WSP_XMLNS,
+                                                                               Constants.TIER_POLICY_TAG)
+                .item(0);
+
+        policy.setMaxCount(Integer.valueOf(controlPolicyTag.getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS,
+                                                                                   Constants.TIER_MAX_COUNT_TAG)
+                                                   .item(0).getTextContent()));
+
+
+        policy.setUnitTime(Long.valueOf(controlPolicyTag.getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS,
+                                                                                Constants.TIER_UNIT_COUNT_TAG)
+                                                .item(0).getTextContent()));
+
+        Element attributePolicy = (Element) controlPolicyTag.getElementsByTagNameNS(Constants.TIER_WSP_XMLNS,
+                                                                                    Constants.TIER_POLICY_TAG)
+                .item(0);
+
+        if (attributePolicy != null)    {
+            Node billingPlan = attributePolicy.getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS,
+                                                                      Constants.TIER_BILLING_PLAN_TAG).item(0);
+
+            policy.setBillingPlan(billingPlan.getTextContent());
+
+            Node stopOnQuotaReach = attributePolicy.getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS,
+                                                                           Constants.TIER_STOP_ON_QUOTA_TAG).item(0);
+            policy.setStopOnQuotaReach(Boolean.valueOf(stopOnQuotaReach.getTextContent()));
+        }
+
+        return policy;
+
+    }
+
+    private void updateThrottlingEntriesInDatabase(Connection connection, Policy policy, Tenant tenant, String tableName)
+            throws APIMigrationException {
+
+        String entryCheckQuery = "SELECT 1 FROM " + tableName +  " WHERE TENANT_ID = ? AND NAME = ?";
+        ResultSet resultSet = null;
+        PreparedStatement entryCheckSt = null;
+        boolean isPolicyAvailableInDB = false;
+
+        try {
+            entryCheckSt = connection.prepareStatement(entryCheckQuery);
+            entryCheckSt.setInt(1, tenant.getId());
+            entryCheckSt.setString(2, policy.getName());
+            resultSet = entryCheckSt.executeQuery();
+
+            if (resultSet.next())   {
+                isPolicyAvailableInDB = true;
+            }
+
+        } catch (SQLException ex)  {
+            log.error("Error occurred while Querying database for table " + tableName + ". " , ex);
+            throw new APIMigrationException(ex);
+        } finally {
+            APIMgtDBUtil.closeAllConnections(entryCheckSt, null, resultSet);
+        }
+
+        if (isPolicyAvailableInDB)   {
+            log.info("Updating Policy " + policy + " for tenant " + tenant.getId() + " to the table " + tableName);
+            PreparedStatement updateStmt = null;
+
+            if (Constants.AM_API_THROTTLE_POLICY.equals(tableName)) {
+                String update = "UPDATE "
+                       + tableName +
+                        " SET DEFAULT_QUOTA = ?, " +
+                                "DEFAULT_UNIT_TIME = ?, " +
+                                "DEFAULT_TIME_UNIT = ?, " +
+                                "APPLICABLE_LEVEL = ?, " +
+                                "DEFAULT_QUOTA_TYPE = ?, " +
+                                "DESCRIPTION = ? " +
+                                "WHERE NAME = ? AND TENANT_ID = ?";
+                try {
+                    updateStmt = connection.prepareStatement(update);
+                    updateStmt.setInt(1, policy.getMaxCount());
+                    updateStmt.setInt(2, safeLongToInt(TimeUnit.MILLISECONDS.toMinutes(policy.getUnitTime())));
+                    updateStmt.setString(3, Constants.TIER_TIME_UNIT_MINUTE);
+                    updateStmt.setString(4, Constants.TIER_API_LEVEL);
+                    updateStmt.setString(5, Constants.TIER_REQUEST_COUNT);
+                    updateStmt.setString(6, MessageFormat.format(Constants.TIER_DESCRIPTION, policy.getMaxCount()));
+                    updateStmt.setString(7, policy.getName());
+                    updateStmt.setInt(8, tenant.getId());
+                    updateStmt.execute();
+                } catch (SQLException ex)   {
+                    log.error("Error occurred while updating database for table " + tableName + ". " , ex);
+                    throw new APIMigrationException(ex);
+                } finally {
+                    APIMgtDBUtil.closeAllConnections(updateStmt, null, null);
+                }
+            } else if (Constants.AM_POLICY_SUBSCRIPTION.equals(tableName)){
+
+                String query = "UPDATE " +
+                               tableName +
+                               " SET QUOTA = ?, " +
+                               "UNIT_TIME = ?, " +
+                               "TIME_UNIT = ?, " +
+                               "BILLING_PLAN = ?, " +
+                               "STOP_ON_QUOTA_REACH = ?, " +
+                               "DESCRIPTION = ? " +
+                               "WHERE NAME = ? AND TENANT_ID = ?";
+
+                try {
+                    updateStmt = connection.prepareStatement(query);
+                    updateStmt.setInt(1, policy.getMaxCount());
+                    updateStmt.setInt(2, safeLongToInt(TimeUnit.MILLISECONDS.toMinutes(policy.getUnitTime())));
+                    updateStmt.setString(3, Constants.TIER_TIME_UNIT_MINUTE);
+                    if (policy.getBillingPlan() != null)    {
+                        updateStmt.setString(4, policy.getBillingPlan());
+                    } else {
+                        updateStmt.setString(4, Constants.TIER_BILLING_PLAN_FREE);
+                    }
+                    updateStmt.setBoolean(5, policy.isStopOnQuotaReach());
+                    updateStmt.setString(6, MessageFormat.format(Constants.TIER_DESCRIPTION, policy.getMaxCount()));
+                    updateStmt.setString(7, policy.getName());
+                    updateStmt.setInt(8, tenant.getId());
+                    updateStmt.execute();
+
+                } catch (SQLException ex)   {
+                    log.error("Error occurred while updating database for table " + tableName + ". " , ex);
+                    throw new APIMigrationException(ex);
+                } finally {
+                    APIMgtDBUtil.closeAllConnections(updateStmt, null, null);
+                }
+
+            } else {
+                String query = "UPDATE " +
+                               tableName +
+                               " SET QUOTA = ?, " +
+                               "UNIT_TIME = ?, " +
+                               "TIME_UNIT = ?, " +
+                               "DESCRIPTION = ?, " +
+                               "IS_DEPLOYED = ?" +
+                               " WHERE NAME = ? AND TENANT_ID = ?";
+
+
+                try {
+                    updateStmt = connection.prepareStatement(query);
+                    updateStmt.setInt(1, policy.getMaxCount());
+                    updateStmt.setInt(2, safeLongToInt(TimeUnit.MILLISECONDS.toMinutes(policy.getUnitTime())));
+                    updateStmt.setString(3, Constants.TIER_TIME_UNIT_MINUTE);
+                    updateStmt.setString(4, MessageFormat.format(Constants.TIER_DESCRIPTION, policy.getMaxCount()));
+                    updateStmt.setBoolean(5, true);
+                    updateStmt.setString(6, policy.getName());
+                    updateStmt.setInt(7, tenant.getId());
+                    updateStmt.execute();
+                } catch (SQLException ex)   {
+                    log.error("Error occurred while updating database for table " + tableName + ". " , ex);
+                    throw new APIMigrationException(ex);
+                } finally {
+                    APIMgtDBUtil.closeAllConnections(updateStmt, null, null);
+                }
+            }
+
+        } else {
+            log.info("Inserting Policy " + policy + " for tenant " + tenant.getId() + " to the table " + tableName);
+            PreparedStatement insertSmt = null;
+
+            if (Constants.AM_API_THROTTLE_POLICY.equals(tableName)) {
+                String insertQuery = "INSERT INTO " +
+                                     tableName +
+                                     " (NAME, TENANT_ID, APPLICABLE_LEVEL, DEFAULT_QUOTA, DEFAULT_TIME_UNIT, " +
+                                     "DEFAULT_UNIT_TIME, DISPLAY_NAME, DEFAULT_QUOTA_TYPE, DESCRIPTION)" +
+                                     " VALUES (?,?,?,?,?,?,?,?,?)";
+
+                try {
+                    insertSmt = connection.prepareStatement(insertQuery);
+                    insertSmt.setString(1, policy.getName());
+                    insertSmt.setInt(2, tenant.getId());
+                    insertSmt.setString(3, Constants.TIER_API_LEVEL);
+                    insertSmt.setInt(4, policy.getMaxCount());
+                    insertSmt.setString(5, Constants.TIER_TIME_UNIT_MINUTE);
+                    insertSmt.setInt(6, safeLongToInt(TimeUnit.MILLISECONDS.toMinutes(policy.getUnitTime())));
+                    insertSmt.setString(7, policy.getName());
+                    insertSmt.setString(8, Constants.TIER_REQUEST_COUNT);
+                    insertSmt.setString(9, MessageFormat.format(Constants.TIER_DESCRIPTION, policy.getMaxCount()));
+                    insertSmt.execute();
+                } catch (SQLException ex)   {
+                    log.error("Error occurred while inserting entry to table " + tableName + ". " , ex);
+                    throw new APIMigrationException(ex);
+                } finally {
+                    APIMgtDBUtil.closeAllConnections(insertSmt, null, null);
+                }
+            } else if (Constants.AM_POLICY_SUBSCRIPTION.equals(tableName))    {
+
+                String query = "INSERT INTO " +
+                               tableName +
+                               " (NAME, DISPLAY_NAME, TENANT_ID, QUOTA, QUOTA_TYPE, UNIT_TIME, TIME_UNIT, " +
+                               "BILLING_PLAN, DESCRIPTION) " +
+                               "VALUES (?,?,?,?,?,?,?,?,?)";
+
+                try {
+                    insertSmt = connection.prepareStatement(query);
+                    insertSmt.setString(1, policy.getName());
+                    insertSmt.setString(2, policy.getName());
+                    insertSmt.setInt(3, tenant.getId());
+                    insertSmt.setInt(4, policy.getMaxCount());
+                    insertSmt.setString(5, Constants.TIER_REQUEST_COUNT);
+                    insertSmt.setInt(6, safeLongToInt(TimeUnit.MILLISECONDS.toMinutes(policy.getUnitTime())));
+                    insertSmt.setString(7, Constants.TIER_TIME_UNIT_MINUTE);
+                    if(policy.getBillingPlan() != null) {
+                        insertSmt.setString(8, policy.getBillingPlan());
+                    } else {
+                        insertSmt.setString(8, Constants.TIER_BILLING_PLAN_FREE);
+                    }
+                    insertSmt.setString(9, MessageFormat.format(Constants.TIER_DESCRIPTION, policy.getMaxCount()));
+                    insertSmt.execute();
+                } catch (SQLException ex)   {
+                    log.error("Error occurred while inserting entry to table " + tableName + ". " , ex);
+                    throw new APIMigrationException(ex);
+                } finally {
+                    APIMgtDBUtil.closeAllConnections(insertSmt, null, null);
+                }
+            } else {
+                String query = "INSERT INTO " +
+                               tableName +
+                               " (NAME, DISPLAY_NAME, TENANT_ID, QUOTA, QUOTA_TYPE, UNIT_TIME, TIME_UNIT, " +
+                               "DESCRIPTION, IS_DEPLOYED) " +
+                               "VALUES (?,?,?,?,?,?,?,?,?)";
+
+                try {
+                    insertSmt = connection.prepareStatement(query);
+                    insertSmt.setString(1, policy.getName());
+                    insertSmt.setString(2, policy.getName());
+                    insertSmt.setInt(3, tenant.getId());
+                    insertSmt.setInt(4, policy.getMaxCount());
+                    insertSmt.setString(5, Constants.TIER_REQUEST_COUNT);
+                    insertSmt.setInt(6, safeLongToInt(TimeUnit.MILLISECONDS.toMinutes(policy.getUnitTime())));
+                    insertSmt.setString(7, Constants.TIER_TIME_UNIT_MINUTE);
+                    insertSmt.setString(8, MessageFormat.format(Constants.TIER_DESCRIPTION, policy.getMaxCount()));
+                    insertSmt.setBoolean(9, true);
+                    insertSmt.execute();
+                } catch (SQLException ex)   {
+                    log.error("Error occurred while inserting entry to table " + tableName + ". " , ex);
+                    throw new APIMigrationException(ex);
+                } finally {
+                    APIMgtDBUtil.closeAllConnections(insertSmt, null, null);
+                }
+            }
+        }
+    }
+
+    public static int safeLongToInt(long l) {
+        if (l < Integer.MIN_VALUE || l > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException
+                    (l + " cannot be cast to int without changing its value.");
+        }
+        return (int) l;
+    }
+
 
 }

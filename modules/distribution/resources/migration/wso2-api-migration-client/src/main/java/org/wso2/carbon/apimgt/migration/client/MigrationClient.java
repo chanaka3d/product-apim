@@ -37,7 +37,7 @@ public interface MigrationClient {
      * @throws APIMigrationException
      * @throws SQLException
      */
-    public void databaseMigration() throws APIMigrationException, SQLException;
+    void databaseMigration() throws APIMigrationException, SQLException;
 
     /**
      * This method is used to migrate all the registry resources
@@ -45,7 +45,7 @@ public interface MigrationClient {
      *
      * @throws APIMigrationException
      */
-    public void registryResourceMigration() throws APIMigrationException;
+    void registryResourceMigration() throws APIMigrationException;
 
 
     /**
@@ -54,7 +54,7 @@ public interface MigrationClient {
      *
      * @throws APIMigrationException
      */
-    public void fileSystemMigration() throws APIMigrationException;
+    void fileSystemMigration() throws APIMigrationException;
 
 
     /**
@@ -63,7 +63,7 @@ public interface MigrationClient {
      *
      * @throws APIMigrationException
      */
-    public void cleanOldResources() throws APIMigrationException;
+    void cleanOldResources() throws APIMigrationException;
 
     /**
      * This method is used to migrate API stats database.
@@ -71,12 +71,12 @@ public interface MigrationClient {
      *
      * @throws APIMigrationException
      */
-    public void statsMigration() throws APIMigrationException;
+    void statsMigration() throws APIMigrationException;
 
     /**
-     * This method is used to migrate optional features in API.     *
+     * This method is used to migrate throttling tiers.     *
      *
      * @throws APIMigrationException
      */
-    public void optionalMigration(List<String> options) throws APIMigrationException;
+    void tierMigration(List<String> options) throws APIMigrationException;
 }

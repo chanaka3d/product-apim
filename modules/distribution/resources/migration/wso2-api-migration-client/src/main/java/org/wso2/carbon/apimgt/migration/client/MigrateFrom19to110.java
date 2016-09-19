@@ -112,7 +112,7 @@ public class MigrateFrom19to110 extends MigrationClientBase implements Migration
     }
 
     @Override
-    public void optionalMigration(List<String> options) throws APIMigrationException {
+    public void tierMigration(List<String> options) throws APIMigrationException {
         //no implementation is required
     }
 
