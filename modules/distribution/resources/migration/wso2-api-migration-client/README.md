@@ -3,7 +3,7 @@ This is used to migrate APIs created using different versions of WSO2 API Manage
 This Client is only supported for APIM 1.8.0 to 1.9.0 Migrations
 
 Follow the steps below
-    - Visit https://docs.wso2.com/display/AM190/Upgrading+from+the+Previous+Release
+    - Visit https://docs.wso2.com/display/AM200/Upgrading+from+the+Previous+Release
     - Follow the given instructions
 
 This client can be used to,
