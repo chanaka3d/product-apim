@@ -47,22 +47,22 @@ public abstract class MigrationClientBase {
         if (tenantArguments != null) {  // Tenant arguments have been provided so need to load specific ones
             tenantArguments = tenantArguments.replaceAll("\\s", ""); // Remove spaces and tabs
 
-            tenantsArray = new ArrayList<Tenant>();
+            tenantsArray = new ArrayList<>();
 
             buildTenantList(tenantManager, tenantsArray, tenantArguments);
         } else if (blackListTenantArguments != null) {
             blackListTenantArguments = blackListTenantArguments.replaceAll("\\s", ""); // Remove spaces and tabs
 
-            List<Tenant> blackListTenants = new ArrayList<Tenant>();
+            List<Tenant> blackListTenants = new ArrayList<>();
             buildTenantList(tenantManager, blackListTenants, blackListTenantArguments);
 
-            List<Tenant> allTenants = new ArrayList<Tenant>(Arrays.asList(tenantManager.getAllTenants()));
+            List<Tenant> allTenants = new ArrayList<>(Arrays.asList(tenantManager.getAllTenants()));
             Tenant superTenant = new Tenant();
             superTenant.setDomain(MultitenantConstants.SUPER_TENANT_DOMAIN_NAME);
             superTenant.setId(MultitenantConstants.SUPER_TENANT_ID);
             allTenants.add(superTenant);
 
-            tenantsArray = new ArrayList<Tenant>();
+            tenantsArray = new ArrayList<>();
 
             for (Tenant tenant : allTenants) {
                 boolean isBlackListed = false;
@@ -96,7 +96,7 @@ public abstract class MigrationClientBase {
                 }
             }
         } else {  // Load all tenants
-            tenantsArray = new ArrayList<Tenant>(Arrays.asList(tenantManager.getAllTenants()));
+            tenantsArray = new ArrayList<>(Arrays.asList(tenantManager.getAllTenants()));
             Tenant superTenant = new Tenant();
             superTenant.setDomain(MultitenantConstants.SUPER_TENANT_DOMAIN_NAME);
             superTenant.setId(MultitenantConstants.SUPER_TENANT_ID);
