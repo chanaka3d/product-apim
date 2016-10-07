@@ -616,9 +616,9 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                                     + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant.getDomain()
                                     + ')', e);
                 }
-            }
-            log.info("End updating Swagger definition for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
+            }            
         }
+        log.info("End updating Swagger definition for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
     }
 
     /**
@@ -647,65 +647,69 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
         }
         JSONObject swaggerdoc = (JSONObject) parser.parse(swaggerRes);
         JSONObject paths = (JSONObject) swaggerdoc.get(Constants.SWAGGER_PATHS);
-        Set<Map.Entry> res = paths.entrySet();
-        for (Map.Entry e : res) {
-            JSONObject methods = (JSONObject) e.getValue();
-            Set<Map.Entry> mes = methods.entrySet();
-            for (Map.Entry m : mes) {
-                if (!(m.getValue() instanceof JSONObject)) {
-                    log.warn("path is expected to be json but string found on " + swaggerlocation);
-                    continue;
-                }
-                JSONObject re = (JSONObject) m.getValue();
-                //setting produce type as array
-                Object produceObj = re.get(Constants.SWAGGER_PRODUCES);
-                if (produceObj != null && !(produceObj instanceof JSONArray)) {
-                    JSONArray prodArr = new JSONArray();
-                    prodArr.add((String) produceObj);
-                    re.put(Constants.SWAGGER_PRODUCES, prodArr);
-                }
+        if (paths != null) {
+        	Set<Map.Entry> res = paths.entrySet();
+            for (Map.Entry e : res) {
+                JSONObject methods = (JSONObject) e.getValue();
+                Set<Map.Entry> mes = methods.entrySet();
+                for (Map.Entry m : mes) {
+                    if (!(m.getValue() instanceof JSONObject)) {
+                        log.warn("path is expected to be json but string found on " + swaggerlocation);
+                        continue;
+                    }
+                    JSONObject re = (JSONObject) m.getValue();
+                    //setting produce type as array
+                    Object produceObj = re.get(Constants.SWAGGER_PRODUCES);
+                    if (produceObj != null && !(produceObj instanceof JSONArray)) {
+                        JSONArray prodArr = new JSONArray();
+                        prodArr.add((String) produceObj);
+                        re.put(Constants.SWAGGER_PRODUCES, prodArr);
+                    }
 
-                //for resources parameters schema changing
-                JSONArray parameters = (JSONArray) re.get(Constants.SWAGGER_PATH_PARAMETERS_KEY);
-                if (parameters != null) {
-                    for (int i = 0; i < parameters.size(); i++) {
-                        JSONObject parameterObj = (JSONObject) parameters.get(i);
-                        JSONObject schemaObj = (JSONObject) parameterObj.get(Constants.SWAGGER_BODY_SCHEMA);
-                        if (schemaObj != null) {
-                            JSONObject propertiesObj = (JSONObject) schemaObj.get(Constants.SWAGGER_PROPERTIES_KEY);
-                            if (propertiesObj == null) {
-                                JSONObject propObj = new JSONObject();
-                                JSONObject payObj = new JSONObject();
-                                payObj.put(Constants.SWAGGER_PARAM_TYPE, Constants.SWAGGER_STRING_TYPE);
-                                propObj.put(Constants.SWAGGER_PAYLOAD_KEY, payObj);
-                                schemaObj.put(Constants.SWAGGER_PROPERTIES_KEY, propObj);
+                    //for resources parameters schema changing
+                    JSONArray parameters = (JSONArray) re.get(Constants.SWAGGER_PATH_PARAMETERS_KEY);
+                    if (parameters != null) {
+                        for (int i = 0; i < parameters.size(); i++) {
+                            JSONObject parameterObj = (JSONObject) parameters.get(i);
+                            JSONObject schemaObj = (JSONObject) parameterObj.get(Constants.SWAGGER_BODY_SCHEMA);
+                            if (schemaObj != null) {
+                                JSONObject propertiesObj = (JSONObject) schemaObj.get(Constants.SWAGGER_PROPERTIES_KEY);
+                                if (propertiesObj == null) {
+                                    JSONObject propObj = new JSONObject();
+                                    JSONObject payObj = new JSONObject();
+                                    payObj.put(Constants.SWAGGER_PARAM_TYPE, Constants.SWAGGER_STRING_TYPE);
+                                    propObj.put(Constants.SWAGGER_PAYLOAD_KEY, payObj);
+                                    schemaObj.put(Constants.SWAGGER_PROPERTIES_KEY, propObj);
+                                }
                             }
                         }
                     }
-                }
 
-                if (re.get(Constants.SWAGGER_RESPONSES) instanceof JSONObject) {
-                	//for resources response object
-                    JSONObject responses = (JSONObject) re.get(Constants.SWAGGER_RESPONSES);
-                    if (responses == null) {
-                        log.warn("responses attribute not present in swagger " + swaggerlocation);
-                        continue;
-                    }
-                    JSONObject response;
-                    Iterator itr = responses.keySet().iterator();
-                    while (itr.hasNext()) {
-                        String key = (String) itr.next();
-                        response = (JSONObject) responses.get(key);
-                        boolean isExist = response.containsKey(Constants.SWAGGER_DESCRIPTION);
-                        if (!isExist) {
-                            response.put(Constants.SWAGGER_DESCRIPTION, "");
+                    if (re.get(Constants.SWAGGER_RESPONSES) instanceof JSONObject) {
+                    	//for resources response object
+                        JSONObject responses = (JSONObject) re.get(Constants.SWAGGER_RESPONSES);
+                        if (responses == null) {
+                            log.warn("responses attribute not present in swagger " + swaggerlocation);
+                            continue;
                         }
+                        JSONObject response;
+                        Iterator itr = responses.keySet().iterator();
+                        while (itr.hasNext()) {
+                            String key = (String) itr.next();
+                            if (responses.get(key) instanceof JSONObject) {
+    	                        response = (JSONObject) responses.get(key);
+    	                        boolean isExist = response.containsKey(Constants.SWAGGER_DESCRIPTION);
+    	                        if (!isExist) {
+    	                            response.put(Constants.SWAGGER_DESCRIPTION, "");
+    	                        }
+                            }
+                        }
+                    } else {
+                    	log.error("Invalid Swagger responses element found in " + swaggerlocation);
                     }
-                } else {
-                	log.error("Invalid Swagger responses element found in " + swaggerlocation);
                 }
             }
-        }
+        }        
         return swaggerdoc.toJSONString();
     }
 
