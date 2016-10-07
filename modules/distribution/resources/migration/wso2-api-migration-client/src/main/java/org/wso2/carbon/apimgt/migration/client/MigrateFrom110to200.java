@@ -19,37 +19,41 @@ package org.wso2.carbon.apimgt.migration.client;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.MessageFormat;
-import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.wso2.carbon.apimgt.api.APIManagementException;
+import org.wso2.carbon.apimgt.api.model.API;
+import org.wso2.carbon.apimgt.api.model.APIIdentifier;
 import org.wso2.carbon.apimgt.impl.APIConstants;
 import org.wso2.carbon.apimgt.impl.utils.APIMgtDBUtil;
 import org.wso2.carbon.apimgt.migration.APIMigrationException;
-import org.wso2.carbon.apimgt.migration.client._110Specific.ResourceModifier;
-import org.wso2.carbon.apimgt.migration.client._110Specific.dto.AppKeyMappingTableDTO;
-import org.wso2.carbon.apimgt.migration.client._110Specific.dto.ConsumerAppsTableDTO;
-import org.wso2.carbon.apimgt.migration.client._110Specific.dto.ConsumerKeyDTO;
-import org.wso2.carbon.apimgt.migration.client._110Specific.dto.KeyDomainMappingTableDTO;
 import org.wso2.carbon.apimgt.migration.client._110Specific.dto.SynapseDTO;
 import org.wso2.carbon.apimgt.migration.client._200Specific.ResourceModifier200;
 import org.wso2.carbon.apimgt.migration.client._200Specific.model.Policy;
+import org.wso2.carbon.apimgt.migration.client.internal.ServiceHolder;
 import org.wso2.carbon.apimgt.migration.util.Constants;
 import org.wso2.carbon.apimgt.migration.util.RegistryService;
 import org.wso2.carbon.apimgt.migration.util.ResourceUtil;
-import org.wso2.carbon.apimgt.migration.util.StatDBUtil;
 import org.wso2.carbon.governance.api.exception.GovernanceException;
 import org.wso2.carbon.governance.api.generic.dataobjects.GenericArtifact;
 import org.wso2.carbon.registry.api.RegistryException;
@@ -63,14 +67,12 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
 
     private static final Log log = LogFactory.getLog(MigrateFrom110to200.class);
     private RegistryService registryService;
-    private boolean removeDecryptionFailedKeysFromDB;
 
     public MigrateFrom110to200(String tenantArguments, String blackListTenantArguments, String tenantRange,
             RegistryService registryService, TenantManager tenantManager, boolean removeDecryptionFailedKeysFromDB)
             throws UserStoreException {
         super(tenantArguments, blackListTenantArguments, tenantRange, tenantManager);
         this.registryService = registryService;
-        this.removeDecryptionFailedKeysFromDB = removeDecryptionFailedKeysFromDB;
     }
 
     @Override
@@ -83,6 +85,7 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
 
     @Override
     public void registryResourceMigration() throws APIMigrationException {
+    	swaggerResourceMigration();
         rxtMigration();
     }
 
@@ -536,6 +539,174 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                 }
             }
         }
+    }
+    
+    void swaggerResourceMigration() throws APIMigrationException {
+        log.info("Swagger migration for API Manager " + Constants.VERSION_2_0_0 + " started.");
+
+        for (Tenant tenant : getTenantsArray()) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Start swaggerResourceMigration for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
+            }
+
+            try {
+                registryService.startTenantFlow(tenant);
+                GenericArtifact[] artifacts = registryService.getGenericAPIArtifacts();
+
+                updateSwaggerResources(artifacts, tenant);
+            } catch (Exception e) {
+                // If any exception happen during a tenant data migration, we continue the other tenants
+                log.error("Unable to migrate the swagger resources of tenant : " + tenant.getDomain(), e);
+            } finally {
+                registryService.endTenantFlow();
+            }
+
+            log.debug("End swaggerResourceMigration for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
+        }
+
+        log.info("Swagger resource migration done for all the tenants.");
+    }
+
+    private void updateSwaggerResources(GenericArtifact[] artifacts, Tenant tenant) throws APIMigrationException {
+        log.debug("Calling updateSwaggerResources");
+        log.info("Updating Swagger definition for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
+        for (GenericArtifact artifact : artifacts) {
+            API api = registryService.getAPI(artifact);
+
+            if (api != null) {
+                APIIdentifier apiIdentifier = api.getId();
+                String apiName = apiIdentifier.getApiName();
+                String apiVersion = apiIdentifier.getVersion();
+                String apiProviderName = apiIdentifier.getProviderName();
+                try {
+                    String swaggerlocation = ResourceUtil
+                            .getSwagger2ResourceLocation(apiName, apiVersion, apiProviderName);
+                    log.debug("Migrating swagger resurce for  : " + apiName + '-' + apiVersion + '-'
+                            + apiProviderName);
+                    String swaggerDocument = getMigratedSwaggerDefinition(tenant, swaggerlocation, api);
+                    
+                    if (swaggerDocument != null) {
+	                    registryService
+	                            .addGovernanceRegistryResource(swaggerlocation, swaggerDocument, "application/json");
+	
+	                    registryService
+	                            .setGovernanceRegistryResourcePermissions(apiProviderName, null, null, swaggerlocation);
+                    }
+                } catch (RegistryException e) {
+                    log.error("Registry error encountered for api " + apiName + '-' + apiVersion + '-' + apiProviderName
+                            + " of tenant " + tenant.getId() + '(' + tenant.getDomain() + ')', e);
+                } catch (ParseException e) {
+                    log.error("Error occurred while parsing swagger document for api " + apiName + '-' + apiVersion
+                            + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant.getDomain() + ')',
+                            e);
+                } catch (UserStoreException e) {
+                    log.error(
+                            "Error occurred while setting permissions of swagger document for api " + apiName + '-'
+                                    + apiVersion + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant
+                                    .getDomain() + ')', e);
+                } catch (MalformedURLException e) {
+                    log.error(
+                            "Error occurred while creating swagger document for api " + apiName + '-' + apiVersion
+                                    + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant.getDomain()
+                                    + ')', e);
+                } catch (APIManagementException e) {
+                    log.error(
+                            "Error occurred while creating swagger document for api " + apiName + '-' + apiVersion
+                                    + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant.getDomain()
+                                    + ')', e);
+                }
+                log.info("End updating Swagger definition for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
+            }
+        }
+    }
+
+    /**
+     * This method generates swagger definition for APIM 2.0.0
+     *
+     * @param tenant            Tenant
+     * @param swaggerlocation the location of swagger doc
+     * @return JSON string of swagger v2 doc
+     * @throws java.net.MalformedURLException
+     * @throws org.json.simple.parser.ParseException
+     * @throws org.wso2.carbon.registry.core.exceptions.RegistryException
+     */
+
+    private String getMigratedSwaggerDefinition(Tenant tenant, String swaggerlocation, API api)
+            throws MalformedURLException, ParseException, RegistryException, UserStoreException {
+        log.debug("Calling getMigratedSwaggerDefinition");
+        JSONParser parser = new JSONParser();
+
+        Object rawResource = registryService.getGovernanceRegistryResource(swaggerlocation);
+        if (rawResource == null) {
+            return null;
+        }
+        String swaggerRes = ResourceUtil.getResourceContent(rawResource);
+        if (swaggerRes == null) {
+        	return null;
+        }
+        JSONObject swaggerdoc = (JSONObject) parser.parse(swaggerRes);
+        JSONObject paths = (JSONObject) swaggerdoc.get(Constants.SWAGGER_PATHS);
+        Set<Map.Entry> res = paths.entrySet();
+        for (Map.Entry e : res) {
+            JSONObject methods = (JSONObject) e.getValue();
+            Set<Map.Entry> mes = methods.entrySet();
+            for (Map.Entry m : mes) {
+                if (!(m.getValue() instanceof JSONObject)) {
+                    log.warn("path is expected to be json but string found on " + swaggerlocation);
+                    continue;
+                }
+                JSONObject re = (JSONObject) m.getValue();
+                //setting produce type as array
+                Object produceObj = re.get(Constants.SWAGGER_PRODUCES);
+                if (produceObj != null && !(produceObj instanceof JSONArray)) {
+                    JSONArray prodArr = new JSONArray();
+                    prodArr.add((String) produceObj);
+                    re.put(Constants.SWAGGER_PRODUCES, prodArr);
+                }
+
+                //for resources parameters schema changing
+                JSONArray parameters = (JSONArray) re.get(Constants.SWAGGER_PATH_PARAMETERS_KEY);
+                if (parameters != null) {
+                    for (int i = 0; i < parameters.size(); i++) {
+                        JSONObject parameterObj = (JSONObject) parameters.get(i);
+                        JSONObject schemaObj = (JSONObject) parameterObj.get(Constants.SWAGGER_BODY_SCHEMA);
+                        if (schemaObj != null) {
+                            JSONObject propertiesObj = (JSONObject) schemaObj.get(Constants.SWAGGER_PROPERTIES_KEY);
+                            if (propertiesObj == null) {
+                                JSONObject propObj = new JSONObject();
+                                JSONObject payObj = new JSONObject();
+                                payObj.put(Constants.SWAGGER_PARAM_TYPE, Constants.SWAGGER_STRING_TYPE);
+                                propObj.put(Constants.SWAGGER_PAYLOAD_KEY, payObj);
+                                schemaObj.put(Constants.SWAGGER_PROPERTIES_KEY, propObj);
+                            }
+                        }
+                    }
+                }
+
+                if (re.get(Constants.SWAGGER_RESPONSES) instanceof JSONObject) {
+                	//for resources response object
+                    JSONObject responses = (JSONObject) re.get(Constants.SWAGGER_RESPONSES);
+                    if (responses == null) {
+                        log.warn("responses attribute not present in swagger " + swaggerlocation);
+                        continue;
+                    }
+                    JSONObject response;
+                    Iterator itr = responses.keySet().iterator();
+                    while (itr.hasNext()) {
+                        String key = (String) itr.next();
+                        response = (JSONObject) responses.get(key);
+                        boolean isExist = response.containsKey(Constants.SWAGGER_DESCRIPTION);
+                        if (!isExist) {
+                            response.put(Constants.SWAGGER_DESCRIPTION, "");
+                        }
+                    }
+                } else {
+                	log.error("Invalid Swagger responses element found in " + swaggerlocation);
+                }
+            }
+        }
+        return swaggerdoc.toJSONString();
     }
 
     public static int safeLongToInt(long l) {
