@@ -616,8 +616,8 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                                     + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant.getDomain()
                                     + ')', e);
                 }
-                log.info("End updating Swagger definition for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
             }
+            log.info("End updating Swagger definition for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
         }
     }
 
