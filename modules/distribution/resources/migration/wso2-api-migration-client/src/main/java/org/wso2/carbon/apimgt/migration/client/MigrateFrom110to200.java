@@ -278,8 +278,7 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                     
                     if (swaggerDocument != null) {
 	                    registryService
-	                            .addGovernanceRegistryResource(swaggerlocation, swaggerDocument, "application/json");
-	
+	                            .addGovernanceRegistryResource(swaggerlocation, swaggerDocument, "application/json");	
 	                    registryService
 	                            .setGovernanceRegistryResourcePermissions(apiProviderName, null, null, swaggerlocation);
                     }
