@@ -278,9 +278,7 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                     
                     if (swaggerDocument != null) {
 	                    registryService
-	                            .addGovernanceRegistryResource(swaggerlocation, swaggerDocument, "application/json");	
-	                    registryService
-	                            .setGovernanceRegistryResourcePermissions(apiProviderName, null, null, swaggerlocation);
+	                            .addGovernanceRegistryResource(swaggerlocation, swaggerDocument, "application/json");
                     }
                 } catch (RegistryException e) {
                     log.error("Registry error encountered for api " + apiName + '-' + apiVersion + '-' + apiProviderName
@@ -295,11 +293,6 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                                     + apiVersion + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant
                                     .getDomain() + ')', e);
                 } catch (MalformedURLException e) {
-                    log.error(
-                            "Error occurred while creating swagger document for api " + apiName + '-' + apiVersion
-                                    + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant.getDomain()
-                                    + ')', e);
-                } catch (APIManagementException e) {
                     log.error(
                             "Error occurred while creating swagger document for api " + apiName + '-' + apiVersion
                                     + '-' + apiProviderName + " of tenant " + tenant.getId() + '(' + tenant.getDomain()
