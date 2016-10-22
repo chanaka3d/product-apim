@@ -26,8 +26,10 @@ public class StreamDefinitions {
     public static final String APIMGT_STATISTICS_DESTINATION_STREAM_ID = "org_wso2_apimgt_statistics_destination:1.0.0";
     public static final String APIMGT_STATISTICS_REQUEST_STREAM_ID = "org.wso2.apimgt.statistics.request:1.1.0";
     public static final String APIMGT_STATISTICS_EXECUTION_TIME_STREAM_ID =
-            "org.wso2.apimgt.statistics.execution.time:" + "1.0.0";
+            "org.wso2.apimgt.statistics.execution.time:1.0.0";
     public static final String APIMGT_STATISTICS_WORKFLOW_STREAM_ID = "org.wso2.apimgt.statistics.workflow:1.0.0";
+    public static final String APIMGT_STATISTICS_FAULT_STREAM_ID = "org.wso2.apimgt.statistics.fault:1.0.0";
+    public static final String APIMGT_STATISTICS_THROTTLE_STREAM_ID = "org.wso2.apimgt.statistics.throttle:1.0.0";
 
     public static String getStreamDefinitionResponse() {
         return "{" +
@@ -113,52 +115,25 @@ public class StreamDefinitions {
     }
 
     public static String getStreamDefinitionExecutionTime() {
-        return "{" +
-                "  'name': '" + "org.wso2.apimgt.statistics.execution.time" + "'," +
-                "  'version': '" + "1.0.0" + "'," +
-                "  'nickName': 'Execution Time Data'," +
-                "  'description': 'This stream will persist the data which send by the mediation executions'," +
-                "  'metaData': [" +
-                "    {" +
-                "      'name': 'clientType'," +
-                "      'type': 'STRING'" +
-                "    }" +
-                "  ]," +
-                "  'payloadData': [" +
-                "    {" +
-                "      'name': 'api'," +
-                "      'type': 'STRING'" +
-                "    }," +
-                "    {" +
-                "      'name': 'api_version'," +
-                "      'type': 'STRING'" +
-                "    }," +
-                "    {" +
-                "      'name': 'tenantDomain'," +
-                "      'type': 'STRING'" +
-                "    }," +
-                "    {" +
-                "      'name': 'apiPublisher'," +
-                "      'type': 'STRING'" +
-                "    }," +
-                "    {" +
-                "      'name': 'mediationName'," +
-                "      'type': 'STRING'" +
-                "    }," +
-                "    {" +
-                "      'name': 'executionTime'," +
-                "      'type': 'LONG'" +
-                "    }," +
-                "    {" +
-                "      'name': 'context'," +
-                "      'type': 'STRING'" +
-                "    }," +
-                "    {" +
-                "      'name': 'eventTime'," +
-                "      'type': 'LONG'" +
-                "    }" +
-                "  ]" +
-                "}";
+        return "{\n" + "  \"name\": \"org.wso2.apimgt.statistics.execution.time\",\n" + "  \"version\": \"1.0.0\",\n"
+                + "  \"nickName\": \"Execution Time Data\",\n"
+                + "  \"description\": \"This stream will persist the data which send by the mediation executions\",\n"
+                + "  \"metaData\": [\n" + "    {\n" + "      \"name\": \"clientType\",\n"
+                + "      \"type\": \"STRING\"\n" + "    }\n" + "  ],\n" + "  \"payloadData\": [\n" + "    {\n"
+                + "      \"name\": \"api\",\n" + "      \"type\": \"STRING\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"api_version\",\n" + "      \"type\": \"STRING\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"tenantDomain\",\n" + "      \"type\": \"STRING\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"apiPublisher\",\n" + "      \"type\": \"STRING\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"apiResponseTime\",\n" + "      \"type\": \"LONG\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"context\",\n" + "      \"type\": \"STRING\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"securityLatency\",\n" + "      \"type\": \"LONG\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"throttlingLatency\",\n" + "      \"type\": \"LONG\"\n" + "    },\n" + "    {\n"
+                + "      \"name\": \"requestMediationLatency\",\n" + "      \"type\": \"LONG\"\n" + "    },\n"
+                + "    {\n" + "      \"name\": \"responseMediationLatency\",\n" + "      \"type\": \"LONG\"\n"
+                + "    },\n" + "    {\n" + "      \"name\": \"backendLatency\",\n" + "      \"type\": \"LONG\"\n"
+                + "    },\n" + "    {\n" + "      \"name\": \"otherLatency\",\n" + "      \"type\": \"LONG\"\n"
+                + "    },\n" + "    {\n" + "      \"name\": \"eventTime\",\n" + "      \"type\": \"LONG\"\n" + "    }\n"
+                + "  ]\n" + "}";
     }
 
     public static String getStreamDefinitionWorkflow() {
@@ -233,5 +208,60 @@ public class StreamDefinitions {
                 "    {'name': 'hostName','type': 'STRING'}" +
                 "  ]" +
                 "}";
+    }
+
+    public static String getStreamDefinitionFault() {
+        return "{" + "  'name': 'org.wso2.apimgt.statistics.fault',"
+                + "  'version': '1.0.0',"
+                + "  'nickName': 'API Manager Fault Data',"
+                + "  'description': 'Fault Data',"
+                + "  'metaData': ["
+                + "    {'name': 'clientType','type': 'STRING' }"
+                + "  ],"
+                + "  'payloadData': ["
+                + "    {'name': 'consumerKey','type': 'STRING' },"
+                + "    {'name': 'context','type': 'STRING' },"
+                + "    {'name': 'api_version','type': 'STRING'},"
+                + "    {  'name': 'api','type': 'STRING'},"
+                + "    {  'name': 'resourcePath','type': 'STRING'},"
+                + "    {  'name': 'method','type': 'STRING'},"
+                + "    {  'name': 'version','type': 'STRING'},"
+                + "    {  'name': 'errorCode','type': 'STRING'},"
+                + "    {  'name': 'errorMessage','type': 'STRING'},"
+                + "    {  'name': 'requestTime','type': 'LONG'},"
+                + "    {  'name': 'userId','type': 'STRING'},"
+                + "    {  'name': 'tenantDomain','type': 'STRING'},"
+                + "    {  'name': 'hostName','type': 'STRING'},"
+                + "    {  'name': 'apiPublisher','type': 'STRING'},"
+                + "    {  'name': 'applicationName','type': 'STRING'},"
+                + "    {  'name': 'applicationId','type': 'STRING'},"
+                + "    {  'name': 'protocol','type': 'STRING'}"
+                + "  ]"
+                + "}";
+    }
+
+    public static String getStreamDefinitionThrottle() {
+        return "{" + "  'name': 'org.wso2.apimgt.statistics.throttle',"
+                + "  'version': '1.0.0',"
+                + "  'nickName': 'API Manager Throttle Data',"
+                + "  'description': 'Throttle Data',"
+                + "  'metaData': [{"
+                + "      'name': 'clientType','type': 'STRING'" + "    }"
+                + "  ],"
+                + "  'payloadData': ["
+                + "    {'name': 'accessToken','type': 'STRING'},"
+                + "    {'name': 'userId','type': 'STRING'},"
+                + "    {'name': 'tenantDomain','type': 'STRING'},"
+                + "    {'name': 'api','type': 'STRING'},"
+                + "    {'name': 'api_version','type': 'STRING'},"
+                + "    {'name': 'context','type': 'STRING'},"
+                + "    {'name': 'apiPublisher','type': 'STRING'},"
+                + "    {'name': 'throttledTime','type': 'LONG'},"
+                + "    {'name': 'applicationName','type': 'STRING'},"
+                + "    {'name': 'applicationId','type': 'STRING'},"
+                + "    {'name': 'subscriber','type': 'STRING'},"
+                + "    {'name': 'throttledOutReason','type': 'STRING'}"
+                + "  ]"
+                + "}";
     }
 }

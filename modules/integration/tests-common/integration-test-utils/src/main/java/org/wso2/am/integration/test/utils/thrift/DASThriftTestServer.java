@@ -227,4 +227,18 @@ public class DASThriftTestServer {
         }
     }
 
+    public static void main(String[] args) throws Exception {
+        System.setProperty("framework.resource.location",
+                                "/home/rukshan/apim/product-apim-1/modules/integration/tests-integration/tests-backend/src/test/resources/");
+        DASThriftTestServer thriftTestServer = new DASThriftTestServer();
+        int thriftServerListenPort = 7614;
+
+        thriftTestServer.addStreamDefinition(StreamDefinitions.getStreamDefinitionRequest(), -1234);
+        thriftTestServer.addStreamDefinition(StreamDefinitions.getStreamDefinitionResponse(), -1234);
+        thriftTestServer.addStreamDefinition(StreamDefinitions.getStreamDefinitionExecutionTime(), -1234);
+        thriftTestServer.addStreamDefinition(StreamDefinitions.getStreamDefinitionWorkflow(), -1234);
+        thriftTestServer.addStreamDefinition(StreamDefinitions.getStreamDefinitionFault(), -1234);
+        thriftTestServer.addStreamDefinition(StreamDefinitions.getStreamDefinitionThrottle(), -1234);
+        thriftTestServer.start(thriftServerListenPort);
+    }
 }
