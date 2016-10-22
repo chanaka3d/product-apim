@@ -112,6 +112,7 @@
             <class name="org.wso2.am.integration.tests.other.APISearchAPIByTagTestCase"/>
             <class name="org.wso2.am.integration.tests.other.NotificationTestCase"/>
             <class name="org.wso2.am.integration.tests.other.APIM4765ResourceOrderInSwagger"/>
+            <class name="org.wso2.am.integration.tests.other.APIMUnauthorizedUserSwaggerImport"/>
         </classes>
     </test>
 
