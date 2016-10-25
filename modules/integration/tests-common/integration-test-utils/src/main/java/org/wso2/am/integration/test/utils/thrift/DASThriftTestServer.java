@@ -146,6 +146,7 @@ public class DASThriftTestServer {
                         dataTables.put(streamKey, new ArrayList<Event>());
                     }
                     dataTables.get(streamKey).add(event);
+                    log.info(event);
                 }
                 numberOfEventsReceived.addAndGet(eventList.size());
                 log.info("Received events : " + numberOfEventsReceived);
