@@ -1241,4 +1241,10 @@ public class MigrateFrom18to19 extends MigrationClientBase implements MigrationC
             }
         }
     }
+
+	@Override
+	public void updateArtifacts() throws APIMigrationException {
+		// TODO Auto-generated method stub
+		
+	}
 }

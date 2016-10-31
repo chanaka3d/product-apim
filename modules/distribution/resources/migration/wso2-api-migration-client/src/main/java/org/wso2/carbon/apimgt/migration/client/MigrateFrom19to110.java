@@ -822,4 +822,10 @@ public class MigrateFrom19to110 extends MigrationClientBase implements Migration
                     APIConstants.API_LIFE_CYCLE + " for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')', e);
         }
     }
+
+	@Override
+	public void updateArtifacts() throws APIMigrationException {
+		// TODO Auto-generated method stub
+		
+	}
 }
