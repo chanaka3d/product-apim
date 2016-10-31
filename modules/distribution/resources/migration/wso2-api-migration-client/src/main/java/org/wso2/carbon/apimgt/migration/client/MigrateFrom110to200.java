@@ -97,6 +97,12 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
     public void cleanOldResources() throws APIMigrationException {
 
     }
+    
+	@Override
+	public void updateArtifacts() throws APIMigrationException {
+		updateAPAIArtifacts();
+		
+	}
 
     @Override
     public void statsMigration() throws APIMigrationException {
@@ -148,6 +154,57 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
             }
         }
     }
+    
+    /**
+     * This method is used to update the API artifacts in the registry to trigger indexer.
+     * 
+     *
+     * @throws APIMigrationException
+     */
+	private void updateAPAIArtifacts() throws APIMigrationException {
+		log.info("Updating API artifacts for API Manager started.");
+
+		for (Tenant tenant : getTenantsArray()) {
+			try {
+				registryService.startTenantFlow(tenant);
+
+				log.info("Updating APIs for tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
+
+				GenericArtifact[] artifacts = registryService.getGenericAPIArtifacts();
+				for (GenericArtifact artifact : artifacts) {
+					String path = artifact.getPath();
+					if (registryService.isGovernanceRegistryResourceExists(path)) {
+						Object apiResource = registryService.getGovernanceRegistryResource(path);
+						if (apiResource == null) {
+							continue;
+						}
+						String apiResourceContent = ResourceUtil
+								.getResourceContent(apiResource);
+						if (apiResourceContent == null) {
+							continue;
+						}
+						registryService.updateGovernanceRegistryResource(path, apiResourceContent);
+					}
+				}
+				log.info("End Updating API artifacts tenant " + tenant.getId() + '(' + tenant.getDomain() + ')');
+
+			} catch (GovernanceException e) {
+				log.error("Error when accessing API artifact in registry for tenant " + tenant.getId() + '(' + 
+						tenant.getDomain() + ')', e);
+			} catch (org.wso2.carbon.registry.core.exceptions.RegistryException e) {
+				log.error("Error while updating API artifact in the registry for tenant " + tenant.getId() + '(' +
+						tenant.getDomain() + ')', e);
+			} catch (UserStoreException e) {
+				log.error("Error while updating API artifact in the registry for tenant " + tenant.getId() + '(' + 
+						tenant.getDomain() + ')', e);
+			} finally {
+				registryService.endTenantFlow();
+			}
+		}
+
+		log.info("Updating API artifacts done for all the tenants");
+	}
+
 
     
     /**
@@ -184,8 +241,16 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                             + "\"accessControlAllowMethods\": [\"GET\", \"PUT\", \"POST\", \"DELETE\", \"PATCH\", \"OPTIONS\"]"
                             + "}";
                     artifact.setAttribute("overview_corsConfiguration", val);
-                    artifact.setAttribute("overview_endpointSecured", "false");
-                    artifact.setAttribute("overview_endpointAuthDigest", "false");
+                    if (artifact.getAttribute("overview_endpointSecured") != null) {
+                    	artifact.setAttribute("overview_endpointSecured", artifact.getAttribute("overview_endpointSecured"));
+                    } else {
+                    	artifact.setAttribute("overview_endpointSecured", "false");
+                    }
+                    if (artifact.getAttribute("overview_endpointAuthDigest") != null) {
+                    	artifact.setAttribute("overview_endpointAuthDigest", artifact.getAttribute("overview_endpointAuthDigest"));
+                    } else {
+                    	artifact.setAttribute("overview_endpointAuthDigest", "false");
+                    }
 
                     String env = artifact.getAttribute("overview_environments");
                     if (env == null) {
