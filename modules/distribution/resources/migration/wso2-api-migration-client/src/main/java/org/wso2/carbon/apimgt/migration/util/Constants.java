@@ -55,6 +55,7 @@ public class Constants {
     public static final String ARG_MIGRATE_DB = "migrateDB";
     public static final String ARG_MIGRATE_REG = "migrateReg";
     public static final String ARG_MIGRATE_FILE_SYSTEM = "migrateFS";
+    public static final String ARG_TRIGGER_API_INDEXER = "triggerAPIIndexer";
     public static final String ARG_MIGRATE_STATS = "migrateStats";
     public static final String ARG_REMOVE_DECRYPTION_FAILED_CONSUMER_KEYS_FROM_DB = "removeDecryptionFailedKeysFromDB";
 

@@ -83,6 +83,7 @@ public class APIMMigrationServiceComponent {
         boolean isDBMigration = Boolean.parseBoolean(System.getProperty(Constants.ARG_MIGRATE_DB));
         boolean isRegistryMigration = Boolean.parseBoolean(System.getProperty(Constants.ARG_MIGRATE_REG));
         boolean isFileSystemMigration = Boolean.parseBoolean(System.getProperty(Constants.ARG_MIGRATE_FILE_SYSTEM));
+        boolean isTriggerAPIIndexer = Boolean.parseBoolean(System.getProperty(Constants.ARG_TRIGGER_API_INDEXER));
         boolean isStatMigration = Boolean.parseBoolean(System.getProperty(Constants.ARG_MIGRATE_STATS));
         boolean removeDecryptionFailedKeysFromDB = Boolean.parseBoolean(
                 System.getProperty(Constants.ARG_REMOVE_DECRYPTION_FAILED_CONSUMER_KEYS_FROM_DB));
@@ -103,6 +104,7 @@ public class APIMMigrationServiceComponent {
             arguments.setDBMigration(isDBMigration);
             arguments.setRegistryMigration(isRegistryMigration);
             arguments.setFileSystemMigration(isFileSystemMigration);
+            arguments.setTriggerAPIIndexer(isTriggerAPIIndexer);
             arguments.setStatMigration(isStatMigration);
             arguments.setOptions(options);
             MigrationExecutor.execute(arguments);

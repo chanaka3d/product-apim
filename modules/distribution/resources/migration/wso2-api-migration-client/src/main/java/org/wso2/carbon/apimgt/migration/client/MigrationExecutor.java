@@ -42,6 +42,7 @@ public final class MigrationExecutor {
         private boolean isRegistryMigration;
         private boolean isFileSystemMigration;
         private boolean isStatMigration;
+        private boolean isTriggerAPIIndexer;
 
         public void setMigrateAll(boolean migrateAll) {
             this.migrateAll = migrateAll;
@@ -61,6 +62,10 @@ public final class MigrationExecutor {
 
         public void setFileSystemMigration(boolean fileSystemMigration) {
             isFileSystemMigration = fileSystemMigration;
+        }
+        
+        public void setTriggerAPIIndexer(boolean triggerAPIIndexer) {
+        	isTriggerAPIIndexer = triggerAPIIndexer;
         }
 
         public void setStatMigration(boolean statMigration) {
@@ -152,6 +157,11 @@ public final class MigrationExecutor {
             if (arguments.isFileSystemMigration) {
                 log.info("Migrating WSO2 API Manager file system resources");
                 migrationClient.fileSystemMigration();
+            }
+            
+            if(arguments.isTriggerAPIIndexer) {
+            	log.info("Updating API Artifacts");
+            	migrationClient.updateArtifacts();
             }
         }
         //Old resource cleanup

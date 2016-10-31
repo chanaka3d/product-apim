@@ -79,4 +79,10 @@ public interface MigrationClient {
      * @throws APIMigrationException
      */
     void tierMigration(List<String> options) throws APIMigrationException;
+    
+    /**
+     * This method is used to update the API artifacts in the registry to trigger indexer.
+     * @throws APIMigrationException
+     */
+    void updateArtifacts() throws APIMigrationException;
 }

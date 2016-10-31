@@ -280,7 +280,7 @@ public class RegistryServiceImpl implements RegistryService {
     }
 
 
-    private Registry getGovernanceRegistry() throws UserStoreException, RegistryException {
+    public Registry getGovernanceRegistry() throws UserStoreException, RegistryException {
         if (tenant == null) {
             throw new IllegalStateException("The tenant flow has not been started, " +
                     "'RegistryService.startTenantFlow(Tenant tenant)' needs to be called");
