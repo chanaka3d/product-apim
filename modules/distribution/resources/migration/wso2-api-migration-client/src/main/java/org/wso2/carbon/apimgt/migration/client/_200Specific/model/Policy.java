@@ -8,6 +8,8 @@ public class Policy {
     private long unitTime;
     private String billingPlan;
     private boolean stopOnQuotaReach;
+    private String description;
+    private byte[] customAttributes;
 
 
     public String getType() {
@@ -70,4 +72,20 @@ public class Policy {
         sb.append('}');
         return sb.toString();
     }
+
+	public String getDescription() {
+		return description;
+	}
+
+	public void setDescription(String description) {
+		this.description = description;
+	}
+
+	public byte[] getCustomAttributes() {
+		return customAttributes;
+	}
+
+	public void setCustomAttributes(byte[] customAttributes) {
+		this.customAttributes = customAttributes;
+	}
 }
