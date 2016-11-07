@@ -498,11 +498,11 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
      * Deploy the given tier file as a policy
      * @param tenant
      * @param tierFile
-     * @param tableName
+     * @param tierType
      * @throws APIMigrationException
      * @throws APIManagementException
      */
-    private void readTiersAndDeploy(Tenant tenant, String tierFile, String tableName)
+    private void readTiersAndDeploy(Tenant tenant, String tierFile, String tierType)
             throws APIMigrationException, APIManagementException   {
         String apiTier;
         try {
@@ -529,23 +529,23 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
             NodeList tierNodes = throttleAssertion.getChildNodes();
 
 
-            for (int i = 0; i < tierNodes.getLength(); ++i) {
-                Node tierNode = tierNodes.item(i);
+			for (int i = 0; i < tierNodes.getLength(); ++i) {
+				Node tierNode = tierNodes.item(i);
 
-                if (tierNode.getNodeType() == Node.ELEMENT_NODE) {
-                    Policy policy = readPolicyFromRegistry(tierNode);
-                    switch(tableName) {
-                    	case Constants.AM_POLICY_SUBSCRIPTION:
-                    		deploySubscriptionThrottlePolicies(policy, tenant);
-                    	case Constants.AM_POLICY_APPLICATION:
-                    		deployAppThrottlePolicies(policy, tenant);
-                    	case Constants.AM_API_THROTTLE_POLICY:
-                    		deployResourceThrottlePolicies(policy, tenant);
-                    }
-                    //updateThrottlingEntriesInDatabase(connection, policy, tenant, tableName);
-                }
+				if (tierNode.getNodeType() == Node.ELEMENT_NODE) {
+					Policy policy = readPolicyFromRegistry(tierNode);
+					if (Constants.AM_POLICY_SUBSCRIPTION.equals(tierType)) {
+						deploySubscriptionThrottlePolicies(policy, tenant);
+					} else if (Constants.AM_POLICY_APPLICATION.equals(tierType)) {
+						deployAppThrottlePolicies(policy, tenant);
+					} else if (Constants.AM_API_THROTTLE_POLICY
+							.equals(tierType)) {
+						deployResourceThrottlePolicies(policy, tenant);
+					}
+
+				}
+			}
             }
-        }
     }
     
     /**
@@ -580,7 +580,9 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
         defaultQuotaPolicy.setLimit(requestCountLimit);
         applicationPolicy.setDefaultQuotaPolicy(defaultQuotaPolicy);
 
-        if (!apiMgtDAO.isPolicyExist(PolicyConstants.POLICY_LEVEL_APP, tenantId, policyName)) {
+        if (!apiMgtDAO.isPolicyExist(PolicyConstants.POLICY_LEVEL_APP, tenantId, policyName)
+        		&& !APIConstants.DEFAULT_APP_POLICY_UNLIMITED.equalsIgnoreCase(policyName) &&
+        		!APIConstants.UNAUTHENTICATED_TIER.equalsIgnoreCase(policyName)) {
             apiMgtDAO.addApplicationPolicy(applicationPolicy);
             needDeployment = true;
         }
@@ -595,9 +597,9 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                 policyString = policyBuilder.getThrottlePolicyForAppLevel(applicationPolicy);
                 String policyFile = applicationPolicy.getTenantDomain() + "_" +PolicyConstants.POLICY_LEVEL_APP +
                         "_" + applicationPolicy.getPolicyName();
-                if(!APIConstants.DEFAULT_APP_POLICY_UNLIMITED.equalsIgnoreCase(policyName)) {
+                if(!APIConstants.DEFAULT_APP_POLICY_UNLIMITED.equalsIgnoreCase(policyName) &&
+                		!APIConstants.UNAUTHENTICATED_TIER.equalsIgnoreCase(policyName)) {
                     deploymentManager.deployPolicyToGlobalCEP(policyFile, policyString);
-                    //deployExecutionPlan(policyFile, policyString);
                 }
                 apiMgtDAO.setPolicyDeploymentStatus(PolicyConstants.POLICY_LEVEL_APP, applicationPolicy.getPolicyName(),
                         applicationPolicy.getTenantId(), true);
@@ -643,7 +645,9 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
         defaultQuotaPolicy.setLimit(requestCountLimit);
         apiPolicy.setDefaultQuotaPolicy(defaultQuotaPolicy);
 
-        if (!apiMgtDAO.isPolicyExist(PolicyConstants.POLICY_LEVEL_API, tenantId, policyName)) {
+        if (!apiMgtDAO.isPolicyExist(PolicyConstants.POLICY_LEVEL_API, tenantId, policyName) && 
+        		!APIConstants.DEFAULT_APP_POLICY_UNLIMITED.equalsIgnoreCase(policyName) &&
+        		!APIConstants.UNAUTHENTICATED_TIER.equalsIgnoreCase(policyName)) {
             apiMgtDAO.addAPIPolicy(apiPolicy);
         }
 
@@ -657,9 +661,9 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                 policyString = policyBuilder.getThrottlePolicyForAPILevelDefault(apiPolicy);
                 String policyFile = apiPolicy.getTenantDomain() + "_" +PolicyConstants.POLICY_LEVEL_API +
                                     "_" + apiPolicy.getPolicyName() + "_default";
-                if(!APIConstants.DEFAULT_API_POLICY_UNLIMITED.equalsIgnoreCase(policyName)) {
+                if(!APIConstants.DEFAULT_API_POLICY_UNLIMITED.equalsIgnoreCase(policyName) &&
+                		!APIConstants.UNAUTHENTICATED_TIER.equalsIgnoreCase(policyName)) {
                     deploymentManager.deployPolicyToGlobalCEP(policyFile, policyString);
-                    //deployExecutionPlan(policyFile, policyString);
                 }
                 apiMgtDAO.setPolicyDeploymentStatus(PolicyConstants.POLICY_LEVEL_API, apiPolicy.getPolicyName(),
                         apiPolicy.getTenantId(), true);
