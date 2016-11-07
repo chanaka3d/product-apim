@@ -190,6 +190,7 @@ public class Constants {
     public static final String TIER_UNIT_COUNT_TAG = "UnitTime";
     public static final String TIER_BILLING_PLAN_TAG = "x-wso2-BillingPlan";
     public static final String TIER_STOP_ON_QUOTA_TAG = "x-wso2-StopOnQuotaReach";
+    public static final String TIER_DESCRIPTION_TAG = "Description";
 
 
     //database types
