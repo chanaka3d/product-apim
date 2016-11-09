@@ -48,10 +48,10 @@ import org.wso2.carbon.apimgt.api.model.policy.QuotaPolicy;
 import org.wso2.carbon.apimgt.api.model.policy.RequestCountLimit;
 import org.wso2.carbon.apimgt.api.model.policy.SubscriptionPolicy;
 import org.wso2.carbon.apimgt.impl.APIConstants;
-import org.wso2.carbon.apimgt.impl.ThrottlePolicyDeploymentManager;
 import org.wso2.carbon.apimgt.impl.dao.ApiMgtDAO;
 import org.wso2.carbon.apimgt.impl.template.APITemplateException;
 import org.wso2.carbon.apimgt.impl.template.ThrottlePolicyTemplateBuilder;
+import org.wso2.carbon.apimgt.impl.throttling.GlobalThrottleEngineClient;
 import org.wso2.carbon.apimgt.migration.APIMigrationException;
 import org.wso2.carbon.apimgt.migration.client._110Specific.dto.SynapseDTO;
 import org.wso2.carbon.apimgt.migration.client._200Specific.ResourceModifier200;
@@ -59,7 +59,6 @@ import org.wso2.carbon.apimgt.migration.client._200Specific.model.Policy;
 import org.wso2.carbon.apimgt.migration.util.Constants;
 import org.wso2.carbon.apimgt.migration.util.RegistryService;
 import org.wso2.carbon.apimgt.migration.util.ResourceUtil;
-import org.wso2.carbon.authenticator.stub.AuthenticationAdminStub;
 import org.wso2.carbon.governance.api.exception.GovernanceException;
 import org.wso2.carbon.governance.api.generic.dataobjects.GenericArtifact;
 import org.wso2.carbon.registry.api.RegistryException;
@@ -73,7 +72,7 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
 
     private static final Log log = LogFactory.getLog(MigrateFrom110to200.class);
     private RegistryService registryService;
-    private static AuthenticationAdminStub authenticationAdminStub;
+    private static GlobalThrottleEngineClient globalThrottleEngineClient;
 
 	
     public MigrateFrom110to200(String tenantArguments, String blackListTenantArguments, String tenantRange,
@@ -136,7 +135,14 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
     @Override
     public void tierMigration(List<String> options) throws APIMigrationException {
     	log.info("Advanced throttling migration for API Manager started");
-        if (options.contains("migrateThrottling")) {
+        if (options.contains(Constants.ARG_OPTIONS_MIGRATE_THROTTLING)) {
+        	boolean deployPolicies = options.contains(Constants.ARG_OPTIONS_DEPLOY_POLICIES);
+            if (deployPolicies) {
+            	log.info("Throttle policies will be deployed to Traffic Manager Node confiigured.");
+            } else {
+            	log.info("Throttle policies will be saved in " + ResourceUtil.getExecutionPlanPath() + ". "
+            			+ "Please deploy them to the traffic manager node after the migration.");
+            }
             for (Tenant tenant : getTenantsArray()) {
                 String apiPath = ResourceUtil.getApiPath(tenant.getId(), tenant.getDomain());
                 List<SynapseDTO> synapseDTOs = ResourceUtil.getVersionedAPIs(apiPath);
@@ -145,13 +151,15 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                 for (SynapseDTO synapseDTO : synapseDTOs) {
                     ResourceModifier200.transformXMLDocument(synapseDTO.getDocument(), synapseDTO.getFile());
                 }
-
+                
                 //Read Throttling Tier from Registry and update databases
-                try {
-                    readThrottlingTiersFromRegistry(tenant);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                readThrottlingTiersFromRegistry(tenant, deployPolicies);                
+            }
+            if (deployPolicies) {
+            	log.info("Throttle policies are deployed to Traffic Manager Node confiigured.");
+            } else {
+            	log.info("Throttle policies are saved in " + ResourceUtil.getExecutionPlanPath() + ". "
+            			+ "Please deploy them to the traffic manager node after the migration.");
             }
             log.info("Advanced throttling migration is completed.");
         }
@@ -479,19 +487,23 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
      * @param tenant
      * @throws APIMigrationException
      */
-    private void readThrottlingTiersFromRegistry(Tenant tenant) throws APIMigrationException  {
+    private void readThrottlingTiersFromRegistry(Tenant tenant, boolean deployPolicies) throws APIMigrationException  {
         registryService.startTenantFlow(tenant);
         try {
             // update or insert all three tiers
-            readTiersAndDeploy(tenant, APIConstants.API_TIER_LOCATION, Constants.AM_POLICY_SUBSCRIPTION);
-            readTiersAndDeploy(tenant, APIConstants.APP_TIER_LOCATION, Constants.AM_POLICY_APPLICATION);
-            readTiersAndDeploy(tenant, APIConstants.RES_TIER_LOCATION, Constants.AM_API_THROTTLE_POLICY);
+            readTiersAndDeploy(tenant, APIConstants.API_TIER_LOCATION, Constants.AM_POLICY_SUBSCRIPTION, deployPolicies);
+            readTiersAndDeploy(tenant, APIConstants.APP_TIER_LOCATION, Constants.AM_POLICY_APPLICATION, deployPolicies);
+            readTiersAndDeploy(tenant, APIConstants.RES_TIER_LOCATION, Constants.AM_API_THROTTLE_POLICY, deployPolicies);
 
+            Thread.sleep(1000);
         } catch (APIManagementException e) {
-			throw new APIMigrationException("Error while migrating throttle tiers. " + e.getMessage());
-		}
-        registryService.endTenantFlow();
-
+        	log.error("Error while migrating throttle tiers for tenant "
+						+ tenant.getId() + '(' + tenant.getDomain() + ')' + e.getMessage());
+		} catch (InterruptedException e) {
+			//Thread.sleep was added to slow down the migration client.
+		} finally {
+			registryService.endTenantFlow();
+		}        
     }
 
     /**
@@ -502,62 +514,75 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
      * @throws APIMigrationException
      * @throws APIManagementException
      */
-    private void readTiersAndDeploy(Tenant tenant, String tierFile, String tierType)
-            throws APIMigrationException, APIManagementException   {
-        String apiTier;
-        try {
-            apiTier = ResourceUtil.getResourceContent(registryService.getGovernanceRegistryResource(tierFile));
-        } catch (UserStoreException ex)    {
-            log.error("Error occurred while reading Registry for " + tierFile + ", for tenant " 
-            		+ tenant.getId() + '(' + tenant.getDomain() + ')', ex);
-            throw new APIMigrationException(ex);
-        } catch (RegistryException ex)    {
-            log.error("Error occurred while reading Registry for " + tierFile + ", for tenant " 
-            		+ tenant.getId() + '(' + tenant.getDomain() + ')', ex);
-            throw new APIMigrationException(ex);
-        }
+	private void readTiersAndDeploy(Tenant tenant, String tierFile,
+			String tierType, boolean deployPolicies) throws APIMigrationException,
+			APIManagementException {
+		//String apiTier;
+		try {
+			if (registryService.getGovernanceRegistryResource(tierFile) != null) {
+				//apiTier = ResourceUtil.getResourceContent(registryService
+					//	.getGovernanceRegistryResource(tierFile));
+				Document doc = ResourceUtil.buildDocument((byte[]) registryService
+						.getGovernanceRegistryResource(tierFile), tierFile);
 
-        Document doc = ResourceUtil.buildDocument(apiTier, tierFile);
+				if (doc != null) {
+					Element rootElement = doc.getDocumentElement();
 
-        if (doc != null) {
-            Element rootElement = doc.getDocumentElement();
+					Element throttleAssertion = (Element) rootElement.getElementsByTagNameNS(
+									Constants.TIER_THROTTLE_XMLNS,
+									Constants.TIER_MEDIATOR_THROTTLE_ASSERTION_TAG)
+							.item(0);
 
-            Element throttleAssertion = (Element) rootElement
-                    .getElementsByTagNameNS(Constants.TIER_THROTTLE_XMLNS,
-                                            Constants.TIER_MEDIATOR_THROTTLE_ASSERTION_TAG).item(0);
+					NodeList tierNodes = throttleAssertion.getChildNodes();
 
-            NodeList tierNodes = throttleAssertion.getChildNodes();
+					for (int i = 0; i < tierNodes.getLength(); ++i) {
+						Node tierNode = tierNodes.item(i);
 
+						if (tierNode.getNodeType() == Node.ELEMENT_NODE) {
+							Policy policy = readPolicyFromRegistry(tierNode);
+							if (Constants.AM_POLICY_SUBSCRIPTION.equals(tierType)) {
+								deploySubscriptionThrottlePolicies(policy, tenant, deployPolicies);
+							} else if (Constants.AM_POLICY_APPLICATION.equals(tierType)) {
+								deployAppThrottlePolicies(policy, tenant, deployPolicies);
+							} else if (Constants.AM_API_THROTTLE_POLICY.equals(tierType)) {
+								deployResourceThrottlePolicies(policy, tenant, deployPolicies);
+							}
 
-			for (int i = 0; i < tierNodes.getLength(); ++i) {
-				Node tierNode = tierNodes.item(i);
-
-				if (tierNode.getNodeType() == Node.ELEMENT_NODE) {
-					Policy policy = readPolicyFromRegistry(tierNode);
-					if (Constants.AM_POLICY_SUBSCRIPTION.equals(tierType)) {
-						deploySubscriptionThrottlePolicies(policy, tenant);
-					} else if (Constants.AM_POLICY_APPLICATION.equals(tierType)) {
-						deployAppThrottlePolicies(policy, tenant);
-					} else if (Constants.AM_API_THROTTLE_POLICY
-							.equals(tierType)) {
-						deployResourceThrottlePolicies(policy, tenant);
+						}
 					}
-
 				}
+			} else {
+				log.error("Empty content found in " + tierFile + " for tenant "
+						+ tenant.getId() + '(' + tenant.getDomain() + ')');
 			}
-            }
-    }
+
+		} catch (UserStoreException ex) {
+			log.error(
+					"Error occurred while reading Registry for " + tierFile
+							+ ", for tenant " + tenant.getId() + '('
+							+ tenant.getDomain() + ')', ex);
+			throw new APIMigrationException(ex);
+		} catch (RegistryException ex) {
+			log.error(
+					"Error occurred while reading Registry for " + tierFile
+							+ ", for tenant " + tenant.getId() + '('
+							+ tenant.getDomain() + ')', ex);
+			throw new APIMigrationException(ex);
+		}
+	}
     
     /**
      * This method update application throttle policies to the database and deploys as execution plans
      * @param policy
      * @param tenant
      * @throws APIManagementException
+     * @throws APIMigrationException 
      */
-    private static void deployAppThrottlePolicies(Policy policy, Tenant tenant) throws APIManagementException {
-    	log.info("Deploying Application throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
+    private static void deployAppThrottlePolicies(Policy policy, Tenant tenant, boolean deployPolicies) 
+    								throws APIManagementException, APIMigrationException {
+    	log.info("Migrating Application throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
                 + ')');
-    	ThrottlePolicyDeploymentManager deploymentManager = ThrottlePolicyDeploymentManager.getInstance();
+
         ThrottlePolicyTemplateBuilder policyBuilder = new ThrottlePolicyTemplateBuilder();
         ApiMgtDAO apiMgtDAO = ApiMgtDAO.getInstance();
         
@@ -599,15 +624,19 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                         "_" + applicationPolicy.getPolicyName();
                 if(!APIConstants.DEFAULT_APP_POLICY_UNLIMITED.equalsIgnoreCase(policyName) &&
                 		!APIConstants.UNAUTHENTICATED_TIER.equalsIgnoreCase(policyName)) {
-                    deploymentManager.deployPolicyToGlobalCEP(policyFile, policyString);
+                	if (!deployPolicies) {
+                		ResourceUtil.deployPolicy(policyFile, policyString);
+                	} else {
+                		deployPolicyToGlobalCEP(policyFile, policyString);
+                	}
                 }
                 apiMgtDAO.setPolicyDeploymentStatus(PolicyConstants.POLICY_LEVEL_APP, applicationPolicy.getPolicyName(),
                         applicationPolicy.getTenantId(), true);
             } catch (APITemplateException e) {
-                throw new APIManagementException("Error while adding default subscription policy" + applicationPolicy.getPolicyName(), e);
+                throw new APIManagementException("Error while adding application policy" + applicationPolicy.getPolicyName(), e);
             }
         }
-        log.info("Completed deploying Application throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
+        log.info("Completed migration of Application throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
                 + ')');
     	
     }
@@ -617,11 +646,13 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
      * @param policy
      * @param tenant
      * @throws APIManagementException
+     * @throws APIMigrationException 
      */
-    private static void deployResourceThrottlePolicies(Policy policy, Tenant tenant) throws APIManagementException {
-    	log.info("Deploying Resource throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
+    private static void deployResourceThrottlePolicies(Policy policy, Tenant tenant, boolean deployPolicies) 
+    		throws APIManagementException, APIMigrationException {
+    	log.info("Migrating Resource throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
                 + ')');
-    	ThrottlePolicyDeploymentManager deploymentManager = ThrottlePolicyDeploymentManager.getInstance();
+
         ThrottlePolicyTemplateBuilder policyBuilder = new ThrottlePolicyTemplateBuilder();
         ApiMgtDAO apiMgtDAO = ApiMgtDAO.getInstance();
         
@@ -663,15 +694,19 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                                     "_" + apiPolicy.getPolicyName() + "_default";
                 if(!APIConstants.DEFAULT_API_POLICY_UNLIMITED.equalsIgnoreCase(policyName) &&
                 		!APIConstants.UNAUTHENTICATED_TIER.equalsIgnoreCase(policyName)) {
-                    deploymentManager.deployPolicyToGlobalCEP(policyFile, policyString);
+                	if (!deployPolicies) {
+                		ResourceUtil.deployPolicy(policyFile, policyString);
+                	} else {
+                		deployPolicyToGlobalCEP(policyFile, policyString);
+                	}
                 }
                 apiMgtDAO.setPolicyDeploymentStatus(PolicyConstants.POLICY_LEVEL_API, apiPolicy.getPolicyName(),
                         apiPolicy.getTenantId(), true);
             } catch (APITemplateException e) {
-                throw new APIManagementException("Error while adding default api policy " + apiPolicy.getPolicyName(), e);
+                throw new APIManagementException("Error while adding api policy " + apiPolicy.getPolicyName(), e);
             }
         }
-        log.info("Completed deploying Resurce throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
+        log.info("Completed migration of Resurce throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
                 + ')');
     	
     }
@@ -681,11 +716,12 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
      * @param policy
      * @param tenant
      * @throws APIManagementException
+     * @throws APIMigrationException 
      */
-    private static void deploySubscriptionThrottlePolicies(Policy policy, Tenant tenant) throws APIManagementException {
-    	log.info("Deploying Subscription throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
+    private static void deploySubscriptionThrottlePolicies(Policy policy, Tenant tenant, boolean deployPolicies) 
+    											throws APIManagementException, APIMigrationException {
+    	log.info("Migrating Subscription throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
                 + ')');
-    	ThrottlePolicyDeploymentManager deploymentManager = ThrottlePolicyDeploymentManager.getInstance();
         ThrottlePolicyTemplateBuilder policyBuilder = new ThrottlePolicyTemplateBuilder();
         ApiMgtDAO apiMgtDAO = ApiMgtDAO.getInstance();
         
@@ -731,16 +767,19 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                 String policyFile = subscriptionPolicy.getTenantDomain() + "_" +PolicyConstants.POLICY_LEVEL_SUB +
                                                                             "_" + subscriptionPolicy.getPolicyName();
                 if(!APIConstants.DEFAULT_SUB_POLICY_UNLIMITED.equalsIgnoreCase(policyName)) {
-                	deploymentManager.deployPolicyToGlobalCEP(policyFile, policyString);
-                	//deployExecutionPlan(policyFile, policyString);
+                	if (!deployPolicies) {
+                		ResourceUtil.deployPolicy(policyFile, policyString);
+                	} else {
+                		deployPolicyToGlobalCEP(policyFile, policyString);
+                	}
                 }
                 apiMgtDAO.setPolicyDeploymentStatus(PolicyConstants.POLICY_LEVEL_SUB, subscriptionPolicy.getPolicyName(),
                                                                                       subscriptionPolicy.getTenantId(), true);
             } catch (APITemplateException e) {
-                throw new APIManagementException("Error while adding default application policy " + subscriptionPolicy.getPolicyName(), e);
+                throw new APIManagementException("Error while adding subscriptioncp  policy " + subscriptionPolicy.getPolicyName(), e);
             }
         }
-        log.info("Completed deploying Subscription throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
+        log.info("Completed migration of Subscription throttle policies for " + tenant.getId() + '(' + tenant.getDomain()
                 + ')');
     	
     }
@@ -845,6 +884,25 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                     (l + " cannot be cast to int without changing its value.");
         }
         return (int) l;
+    }
+    
+    /**
+     * This method will be used to deploy policy to Global policy engine.
+     *
+     * @param policyName policy name of the policy to be deployed.
+     * @param policy     Policy string to be deployed.
+     * @throws APIManagementException
+     */
+    private static void deployPolicyToGlobalCEP(String policyName, String policy) throws APIManagementException {
+        try {
+        	if (globalThrottleEngineClient == null) {
+        		globalThrottleEngineClient = new GlobalThrottleEngineClient();
+        	}
+            globalThrottleEngineClient.deployExecutionPlan(policyName, policy);
+        } catch (Exception e) {
+            log.error("Error while deploying policy to global policy server." + e.getMessage());
+            throw new APIManagementException("Error while deploying policy to global policy server. " +  e.getMessage());
+        }
     }
     
 }
