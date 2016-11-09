@@ -500,8 +500,7 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
         	log.error("Error while migrating throttle tiers for tenant "
 						+ tenant.getId() + '(' + tenant.getDomain() + ')' + e.getMessage());
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			//Thread.sleep was added to slow down the migration client.
 		} finally {
 			registryService.endTenantFlow();
 		}        
