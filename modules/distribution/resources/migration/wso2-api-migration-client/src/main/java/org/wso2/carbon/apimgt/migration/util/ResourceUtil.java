@@ -17,6 +17,7 @@ package org.wso2.carbon.apimgt.migration.util;
 
 import org.apache.axiom.om.OMElement;
 import org.apache.axiom.om.util.AXIOMUtil;
+import org.apache.axis2.AxisFault;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.w3c.dom.Document;
@@ -373,6 +374,21 @@ public class ResourceUtil {
 
         return doc;
     }
+    
+    public static Document buildDocument(byte[] content, String fileName) throws APIMigrationException {
+        Document doc = null;
+        try {
+            DocumentBuilder docBuilder = getDocumentBuilder(fileName);
+            doc = docBuilder.parse(new InputSource(new ByteArrayInputStream(content)));
+            doc.getDocumentElement().normalize();
+        } catch (SAXException e) {
+            ResourceUtil.handleException("Error occurred while parsing the " + fileName + " xml document", e);
+        } catch (IOException e) {
+            ResourceUtil.handleException("Error occurred while reading the " + fileName + " xml document", e);
+        }
+
+        return doc;
+    }
 
 
     public static Document buildDocument(InputStream inputStream, String fileName) throws APIMigrationException {
@@ -455,6 +471,55 @@ public class ResourceUtil {
         }
 
         return apiFilePath;
+    }
+    
+    public static void deployPolicy(String fileName, String content) throws APIMigrationException {
+    	String executionPlanFilePath = getExecutionPlanPath();
+
+    	File writeFile = new File(executionPlanFilePath + "/" + fileName + ".siddhiql");
+        FileOutputStream fos = null;
+        try {
+            fos = new FileOutputStream(writeFile);
+            //if file doesn't exit make one
+            if (!writeFile.exists()) {
+                writeFile.createNewFile();
+            }
+            byte[] contentInBytes = content.getBytes();
+            fos.write(contentInBytes);
+            fos.flush();
+        } catch (IOException e) {
+            log.error("Error occurred writing to " + fileName + ":", e);
+        } finally {
+            try {
+                if (fos != null) {
+                    fos.close();
+                }
+            } catch (IOException e) {
+                log.error("Error occurred closing file output stream", e);
+            }
+        }
+    }
+    
+    public static String getExecutionPlanPath() throws APIMigrationException {
+        if (log.isDebugEnabled()) {
+            log.debug("Get Executionplan path");
+        }
+
+        String executionPlanFilePath = CarbonUtils.getCarbonHome() + "/executionplans";
+
+        File folder = new File(executionPlanFilePath);
+        if(!folder.exists()){
+            if(!folder.mkdirs()){
+                throw new APIMigrationException("Unable to executionplan directory in " 
+                				+ executionPlanFilePath + ". Please check permissions");
+            }
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Executionplan path created in "+ executionPlanFilePath);
+        }
+
+        return executionPlanFilePath;
     }
 
 
