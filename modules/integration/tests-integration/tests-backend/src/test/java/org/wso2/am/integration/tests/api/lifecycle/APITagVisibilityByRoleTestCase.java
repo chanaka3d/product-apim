@@ -74,6 +74,7 @@ public class APITagVisibilityByRoleTestCase extends APIMIntegrationBaseTest {
     private String role = "APITagVisibilityRole1";
     private String[] permissions = { "/permission/admin/login", "/permission/admin/manage/api/subscribe" };
     private Map<String, String> requestHeaders = new HashMap<String, String>();
+    private static final long WAIT_TIME = 45 * 1000;
 
     @Factory(dataProvider = "userModeDataProvider")
     public APITagVisibilityByRoleTestCase(TestUserMode userMode) {
@@ -150,12 +151,12 @@ public class APITagVisibilityByRoleTestCase extends APIMIntegrationBaseTest {
         urlParameters.add(new BasicNameValuePair("tenant", tenant));
         HttpEntity content = new UrlEncodedFormEntity(urlParameters);
         String contentString = EntityUtils.toString(content);
-        
-        Thread.sleep(5000l);
+
+        watForTagsAvailableOnSearchApi(tagsRestricted);
         HttpResponse serviceResponse = HttpRequestUtil.doPost(tagListUrl, contentString, requestHeaders);
-        Assert.assertTrue(serviceResponse.getData().toLowerCase().contains(tagsPublic.toLowerCase()),
+        Assert.assertTrue(serviceResponse.getData().contains(tagsPublic),
                 "Public visibility tag is not available for anonymous user");
-        Assert.assertFalse(serviceResponse.getData().toLowerCase().contains(tagsRestricted.toLowerCase()),
+        Assert.assertFalse(serviceResponse.getData().contains(tagsRestricted),
                 "Restricted visibility tag is available for anonymous user");
     }
 
@@ -180,9 +181,9 @@ public class APITagVisibilityByRoleTestCase extends APIMIntegrationBaseTest {
 
         Thread.sleep(5000l);
         HttpResponse serviceResponse = HttpRequestUtil.doPost(tagListUrl, contentString, requestHeaders);
-        Assert.assertTrue(serviceResponse.getData().toLowerCase().contains(tagsPublic.toLowerCase()),
+        Assert.assertTrue(serviceResponse.getData().contains(tagsPublic),
                 "Public visibility tag is not available for authorised user");
-        Assert.assertTrue(serviceResponse.getData().toLowerCase().contains(tagsRestricted.toLowerCase()),
+        Assert.assertTrue(serviceResponse.getData().contains(tagsRestricted),
                 "Restricted visibility tag is not available for authorised user");
 
     }
@@ -193,6 +194,39 @@ public class APITagVisibilityByRoleTestCase extends APIMIntegrationBaseTest {
         apiPublisher.deleteAPI(apiNameRestricted, APIVersion, user.getUserName());
         userManagementClient1.deleteRole(role);
         userManagementClient1.deleteUser(allowedUser);
+    }
+
+    /**
+     * Used to wait until published apis tags are appear in the Store tag cloud API
+     *
+     * @throws Exception if tag cloud api throws any exceptions
+     */
+    public void watForTagsAvailableOnSearchApi(String tag) throws Exception {
+        long waitTime = System.currentTimeMillis() + WAIT_TIME;
+        HttpResponse response;
+        while (waitTime > System.currentTimeMillis()) {
+            List<NameValuePair> urlParameters = new ArrayList<NameValuePair>();
+            urlParameters.add(new BasicNameValuePair("action", "getAllTags"));
+            urlParameters.add(new BasicNameValuePair("tenant", user.getUserDomain()));
+            HttpEntity content = new UrlEncodedFormEntity(urlParameters);
+            String contentString = EntityUtils.toString(content);
+            Map<String, String> requestHeaders = new HashMap<String, String>();
+            response = HttpRequestUtil.doPost(tagListUrl, contentString, requestHeaders);
+            verifyResponse(response);
+            log.info("WAIT for availability of tags : " + tag + " found on Store tag cloud");
+            if (response != null) {
+                log.info("Data: " + response.getData());
+                if (response.getData().contains(tag)) {
+                    log.info("Tag :" + tag + " found");
+                    break;
+                } else {
+                    try {
+                        Thread.sleep(500);
+                    } catch (InterruptedException ignored) {
+                    }
+                }
+            }
+        }
     }
 
     @DataProvider
