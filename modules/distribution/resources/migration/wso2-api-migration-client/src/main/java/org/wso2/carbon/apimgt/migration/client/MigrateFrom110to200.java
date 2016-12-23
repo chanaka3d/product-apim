@@ -153,7 +153,8 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
                 }
                 
                 //Read Throttling Tier from Registry and update databases
-                readThrottlingTiersFromRegistry(tenant, deployPolicies);                
+                readThrottlingTiersFromRegistry(tenant, deployPolicies);
+                migrateUnlimitedTier();
             }
             if (deployPolicies) {
             	log.info("Throttle policies are deployed to Traffic Manager Node confiigured.");
@@ -162,8 +163,117 @@ public class MigrateFrom110to200 extends MigrationClientBase implements Migratio
             			+ "Please deploy them to the traffic manager node after the migration.");
             }
             log.info("Advanced throttling migration is completed.");
-        }
+        } 
     }
+
+	public void migrateUnlimitedTier() {
+		log.info("Unlimited tier migration for API Manager started");
+		ApiMgtDAO apiMgtDAO = ApiMgtDAO.getInstance();
+		for (Tenant tenant : getTenantsArray()) {
+			log.info("Unlimited tier migration for tenant " + tenant.getId()
+					+ " started");
+			int tenantId = tenant.getId();
+			String tenantDomain = tenant.getDomain();
+			String policyName = "Unlimited";
+			// Add application level unlimited throttle policy
+			ApplicationPolicy applicationPolicy = new ApplicationPolicy(
+					policyName);
+			applicationPolicy.setDescription("Allows unlimited requests");
+			applicationPolicy.setTenantId(tenant.getId());
+			applicationPolicy.setDeployed(true);
+			applicationPolicy.setTenantDomain(tenant.getDomain());
+			QuotaPolicy defaultQuotaPolicy = new QuotaPolicy();
+			RequestCountLimit requestCountLimit = new RequestCountLimit();
+			requestCountLimit.setRequestCount(Integer.MAX_VALUE);
+			requestCountLimit.setUnitTime(1);
+			requestCountLimit.setTimeUnit(APIConstants.TIME_UNIT_MINUTE);
+			defaultQuotaPolicy.setType(PolicyConstants.REQUEST_COUNT_TYPE);
+			defaultQuotaPolicy.setLimit(requestCountLimit);
+			applicationPolicy.setDefaultQuotaPolicy(defaultQuotaPolicy);
+
+			try {
+				if (!apiMgtDAO.isPolicyExist(PolicyConstants.POLICY_LEVEL_APP,
+						tenant.getId(), "Unlimited")) {
+					apiMgtDAO.addApplicationPolicy(applicationPolicy);
+				}
+			} catch (APIManagementException e) {
+				log.error("Error while migrating Application level Unlimited tier for tenant "
+						+ tenant.getId()
+						+ '('
+						+ tenant.getDomain()
+						+ ')'
+						+ e.getMessage());
+			}
+
+			// Adding Subscription level unlimited throttle policy
+			SubscriptionPolicy subscriptionPolicy = new SubscriptionPolicy(
+					policyName);
+			subscriptionPolicy.setDisplayName(policyName);
+			subscriptionPolicy.setDescription("Allows unlimited requests");
+			subscriptionPolicy.setTenantId(tenantId);
+			subscriptionPolicy.setDeployed(false);
+			subscriptionPolicy.setTenantDomain(tenantDomain);
+			defaultQuotaPolicy = new QuotaPolicy();
+			requestCountLimit = new RequestCountLimit();
+			requestCountLimit.setRequestCount(Integer.MAX_VALUE);
+			requestCountLimit.setUnitTime(1);
+			requestCountLimit.setTimeUnit(APIConstants.TIME_UNIT_MINUTE);
+			defaultQuotaPolicy.setType(PolicyConstants.REQUEST_COUNT_TYPE);
+			defaultQuotaPolicy.setLimit(requestCountLimit);
+			subscriptionPolicy.setDefaultQuotaPolicy(defaultQuotaPolicy);
+			subscriptionPolicy.setStopOnQuotaReach(true);
+			subscriptionPolicy.setBillingPlan(APIConstants.BILLING_PLAN_FREE);
+
+			try {
+				if (!apiMgtDAO.isPolicyExist(PolicyConstants.POLICY_LEVEL_SUB,
+						tenantId, policyName)) {
+					apiMgtDAO.addSubscriptionPolicy(subscriptionPolicy);
+				}
+			} catch (APIManagementException e) {
+				log.error("Error while migrating Subscription level Unlimited tier for tenant "
+						+ tenant.getId()
+						+ '('
+						+ tenant.getDomain()
+						+ ')'
+						+ e.getMessage());
+			}
+
+			// Adding Resource level unlimited throttle policy
+			APIPolicy apiPolicy = new APIPolicy(policyName);
+			apiPolicy.setDisplayName(policyName);
+			apiPolicy.setDescription("Allows unlimited requests");
+			apiPolicy.setTenantId(tenantId);
+			apiPolicy.setUserLevel(APIConstants.API_POLICY_API_LEVEL);
+			apiPolicy.setDeployed(false);
+			apiPolicy.setTenantDomain(tenantDomain);
+			defaultQuotaPolicy = new QuotaPolicy();
+			requestCountLimit = new RequestCountLimit();
+			requestCountLimit.setRequestCount(Integer.MAX_VALUE);
+			requestCountLimit.setUnitTime(1);
+			requestCountLimit.setTimeUnit(APIConstants.TIME_UNIT_MINUTE);
+			defaultQuotaPolicy.setType(PolicyConstants.REQUEST_COUNT_TYPE);
+			defaultQuotaPolicy.setLimit(requestCountLimit);
+			apiPolicy.setDefaultQuotaPolicy(defaultQuotaPolicy);
+
+			try {
+				if (!apiMgtDAO.isPolicyExist(PolicyConstants.POLICY_LEVEL_API,
+						tenantId, policyName)) {
+					apiMgtDAO.addAPIPolicy(apiPolicy);
+				}
+			} catch (APIManagementException e) {
+				log.error("Error while migrating API level Unlimited tier for tenant "
+						+ tenant.getId()
+						+ '('
+						+ tenant.getDomain()
+						+ ')'
+						+ e.getMessage());
+			}
+			log.info("Unlimited tier migration for tenant " + tenant.getId()
+					+ " completed");
+
+		}
+		log.info("Unlimited tier migration for API Manager completed");
+	}
 
     private void synapseAPIMigration() {
         for (Tenant tenant : getTenantsArray()) {
