@@ -26,6 +26,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.testng.Assert;
+import org.wso2.am.admin.clients.user.UserRegistrationAdminClient;
 import org.wso2.am.integration.test.utils.APIManagerIntegrationTestException;
 import org.wso2.am.integration.test.utils.bean.APIMURLBean;
 import org.wso2.am.integration.test.utils.clients.APIPublisherRestClient;
@@ -40,7 +41,6 @@ import org.wso2.carbon.automation.engine.frameworkutils.FrameworkPathUtil;
 import org.wso2.carbon.automation.test.utils.http.client.HttpRequestUtil;
 import org.wso2.carbon.automation.test.utils.http.client.HttpResponse;
 import org.wso2.carbon.base.MultitenantConstants;
-import org.wso2.carbon.context.CarbonContext;
 import org.wso2.carbon.integration.common.admin.client.TenantManagementServiceClient;
 import org.wso2.carbon.integration.common.admin.client.UserManagementClient;
 import org.wso2.carbon.integration.common.utils.LoginLogoutClient;
@@ -79,6 +79,7 @@ public class APIMIntegrationBaseTest {
     protected String storeURLHttp;
     protected String keymanagerSessionCookie;
     protected String keymanagerSuperTenantSessionCookie;
+    protected UserRegistrationAdminClient userRegistrationAdminClient;
 
     /**
      * This method will initialize test environment
@@ -136,7 +137,6 @@ public class APIMIntegrationBaseTest {
             executionMode = gatewayContextMgt.getConfigurationValue(ContextXpathConstants.EXECUTION_ENVIRONMENT);
 
             user = storeContext.getContextTenant().getContextUser();
-
             superTenantKeyManagerContext = new AutomationContext(APIMIntegrationConstants.AM_PRODUCT_GROUP_NAME,
                                                       APIMIntegrationConstants.AM_KEY_MANAGER_INSTANCE,
                                                       TestUserMode.SUPER_TENANT_ADMIN);
@@ -151,6 +151,8 @@ public class APIMIntegrationBaseTest {
                 keymanagerSuperTenantSessionCookie = new LoginLogoutClient(superTenantKeyManagerContext).login();
                 userManagementClient = new UserManagementClient(
                         keyManagerContext.getContextUrls().getBackEndUrl(), keymanagerSessionCookie);
+                userRegistrationAdminClient = new UserRegistrationAdminClient(keyManagerContext.getContextUrls()
+                        .getBackEndUrl(), user.getUserName(), user.getPassword());
                 tenantManagementServiceClient = new TenantManagementServiceClient(
                         superTenantKeyManagerContext.getContextUrls().getBackEndUrl(),
                         keymanagerSuperTenantSessionCookie);

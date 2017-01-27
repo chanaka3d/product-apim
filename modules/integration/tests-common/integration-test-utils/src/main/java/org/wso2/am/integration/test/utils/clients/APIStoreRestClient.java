@@ -672,6 +672,25 @@ public class APIStoreRestClient {
         }
     }
 
+    /**
+     * Get subscribed Apis by application name
+     * @param applicationName - Application Name
+     */
+    public HttpResponse getSubscribedAPIsForApplication(String applicationName) throws
+            APIManagerIntegrationTestException {
+        try {
+            checkAuthentication();
+            return HTTPSClientUtils.doPost(
+                    new URL(backendURL + "store/site/blocks/subscription/subscription-list/" +
+                            "ajax/subscription-list.jag?action=getSubscriptionByApplication&app="
+                            + applicationName), "", requestHeaders);
+        } catch (Exception e) {
+            throw new APIManagerIntegrationTestException("Unable to get all subscribed APIs"
+                    + ". Error: " + e.getMessage(), e);
+
+        }
+    }
+
 
 
     /**
@@ -1003,6 +1022,29 @@ public class APIStoreRestClient {
             return HTTPSClientUtils.doPost(new URL(backendURL + "store/site/blocks/user/sign-up/ajax/user-add.jag"),
                     "action=addUser&username=" + userName + "&password=" + password + "&allFieldsValues=" + firstName +
                             "|" + lastName + "|" + email, requestHeaders);
+        } catch (Exception e) {
+            throw new APIManagerIntegrationTestException("Error in user sign up. Error: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * API Store sign up
+     * @param userName - store user name
+     * @param password -store password
+     * @param firstName - user first name
+     * @param lastName - user's last name
+     * @param email - user's email
+     * @param organization - organization name
+     * @return
+     * @throws APIManagerIntegrationTestException
+     *
+     */
+    public HttpResponse signUp(String userName, String password, String firstName, String lastName, String email,
+                               String organization) throws APIManagerIntegrationTestException {
+        try {
+            return HTTPSClientUtils.doPost(new URL(backendURL + "store/site/blocks/user/sign-up/ajax/user-add.jag"),
+                    "action=addUser&username=" + userName + "&password=" + password + "&allFieldsValues=" + firstName +
+                            "|" + lastName + "|" + organization + "|" + email, requestHeaders);
         } catch (Exception e) {
             throw new APIManagerIntegrationTestException("Error in user sign up. Error: " + e.getMessage(), e);
         }
