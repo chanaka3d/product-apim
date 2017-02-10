@@ -284,11 +284,11 @@ public class MigrateFrom18to19 extends MigrationClientBase implements MigrationC
                                 artifact.setAttribute("overview_context", api.getContext() +
                                                                           RegistryConstants.PATH_SEPARATOR +
                                                                           apiVersion);
+                                artifact.setAttribute("overview_contextTemplate", api.getContext() +
+                                        RegistryConstants.PATH_SEPARATOR + "{version}");
                             }
 
-                            artifact.setAttribute("overview_contextTemplate", api.getContext() +
-                                                                              RegistryConstants.PATH_SEPARATOR +
-                                                                              "{version}");
+
                             artifact.setAttribute("overview_environments", "");
                             artifact.setAttribute("overview_versionType", "context");
                             artifact.setAttribute("overview_endpointURL", null);
