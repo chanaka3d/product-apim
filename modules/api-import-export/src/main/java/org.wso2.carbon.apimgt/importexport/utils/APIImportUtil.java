@@ -515,8 +515,7 @@ public final class APIImportUtil {
 
         //Adding in-sequence, if any
         if (checkFileExistence(inSequenceFileLocation)) {
-            regResourcePath = APIConstants.API_CUSTOM_INSEQUENCE_LOCATION + RegistryConstants.PATH_SEPARATOR +
-                              inSequenceFileName;
+            regResourcePath = APIConstants.API_CUSTOM_INSEQUENCE_LOCATION + inSequenceFileName;
             addSequenceToRegistry(registry, inSequenceFileLocation ,regResourcePath);
         }
 
@@ -526,8 +525,7 @@ public final class APIImportUtil {
 
         //Adding out-sequence, if any
         if (checkFileExistence(outSequenceFileLocation)) {
-            regResourcePath = APIConstants.API_CUSTOM_OUTSEQUENCE_LOCATION + RegistryConstants.PATH_SEPARATOR +
-                              outSequenceFileName;
+            regResourcePath = APIConstants.API_CUSTOM_OUTSEQUENCE_LOCATION + outSequenceFileName;
             addSequenceToRegistry(registry, outSequenceFileLocation,regResourcePath);
         }
 
@@ -537,8 +535,7 @@ public final class APIImportUtil {
 
         //Adding fault-sequence, if any
         if (checkFileExistence(faultSequenceFileLocation)) {
-            regResourcePath = APIConstants.API_CUSTOM_FAULTSEQUENCE_LOCATION + RegistryConstants.PATH_SEPARATOR +
-                                             faultSequenceFileName;
+            regResourcePath = APIConstants.API_CUSTOM_FAULTSEQUENCE_LOCATION + faultSequenceFileName;
             addSequenceToRegistry(registry, faultSequenceFileLocation, regResourcePath);
         }
     }
@@ -552,20 +549,20 @@ public final class APIImportUtil {
     private static void addAPISpecificSequences(String pathToArchive, API importedApi) {
 
         Registry registry = APIExportUtil.getRegistry();
-        String inSequenceFileName = importedApi.getInSequence();
-        String inSequenceFileLocation = pathToArchive + APIImportExportConstants.IN_SEQUENCE_LOCATION + "Custom" +
-                                        File.separator + inSequenceFileName;
-
         String regResourcePath = APIConstants.API_ROOT_LOCATION + RegistryConstants.PATH_SEPARATOR +
                                  importedApi.getId().getProviderName() + RegistryConstants.PATH_SEPARATOR +
                                  importedApi.getId().getApiName() + RegistryConstants.PATH_SEPARATOR +
                                  importedApi.getId().getVersion() + RegistryConstants.PATH_SEPARATOR;
 
+        String inSequenceFileName = importedApi.getInSequence();
+        String inSequenceFileLocation = pathToArchive + APIImportExportConstants.IN_SEQUENCE_LOCATION + "Custom" +
+                                        File.separator + inSequenceFileName;
+
         //Adding in-sequence, if any
         if (checkFileExistence(inSequenceFileLocation)) {
-            regResourcePath = regResourcePath + APIConstants.API_CUSTOM_SEQUENCE_TYPE_IN +
+            String inSequencePath = APIConstants.API_CUSTOM_SEQUENCE_TYPE_IN +
                               RegistryConstants.PATH_SEPARATOR + inSequenceFileName;
-            addSequenceToRegistry(registry, inSequenceFileLocation, regResourcePath);
+            addSequenceToRegistry(registry, inSequenceFileLocation, regResourcePath + inSequencePath);
         }
 
         String outSequenceFileName = importedApi.getOutSequence();
@@ -574,9 +571,9 @@ public final class APIImportUtil {
 
         //Adding out-sequence, if any
         if (checkFileExistence(outSequenceFileLocation)) {
-            regResourcePath = regResourcePath + APIConstants.API_CUSTOM_SEQUENCE_TYPE_OUT +
+            String outSequencePath = APIConstants.API_CUSTOM_SEQUENCE_TYPE_OUT +
                               RegistryConstants.PATH_SEPARATOR + outSequenceFileName;
-            addSequenceToRegistry(registry, outSequenceFileLocation, regResourcePath);
+            addSequenceToRegistry(registry, outSequenceFileLocation, regResourcePath + outSequencePath);
         }
 
         String faultSequenceFileName = importedApi.getFaultSequence();
@@ -585,9 +582,9 @@ public final class APIImportUtil {
 
         //Adding fault-sequence, if any
         if (checkFileExistence(faultSequenceFileLocation)) {
-            regResourcePath = regResourcePath + APIConstants.API_CUSTOM_SEQUENCE_TYPE_FAULT +
+            String faultSequencePath = APIConstants.API_CUSTOM_SEQUENCE_TYPE_FAULT +
                               RegistryConstants.PATH_SEPARATOR + faultSequenceFileName;
-            addSequenceToRegistry(registry, faultSequenceFileLocation, regResourcePath);
+            addSequenceToRegistry(registry, faultSequenceFileLocation, regResourcePath + faultSequencePath);
         }
     }
 
@@ -598,7 +595,7 @@ public final class APIImportUtil {
      */
     private static void addSequenceToRegistry(Registry registry, String sequenceFileLocation, String regResourcePath) {
 
-        InputStream inSeqStream = null;
+        InputStream seqStream = null;
         try {
             if (registry.resourceExists(regResourcePath)) {
                 if (log.isDebugEnabled()) {
@@ -609,8 +606,8 @@ public final class APIImportUtil {
                     log.debug("Adding defined sequences to the registry.");
                 }
                 File sequenceFile = new File(sequenceFileLocation);
-                inSeqStream = new FileInputStream(sequenceFile);
-                byte[] inSeqData = IOUtils.toByteArray(inSeqStream);
+                seqStream = new FileInputStream(sequenceFile);
+                byte[] inSeqData = IOUtils.toByteArray(seqStream);
                 Resource inSeqResource = (Resource) registry.newResource();
                 inSeqResource.setContent(inSeqData);
                 registry.put(regResourcePath, inSeqResource);
@@ -622,7 +619,7 @@ public final class APIImportUtil {
             //this is logged and ignored because sequences are optional
             log.error("I/O error while writing sequence data to the registry : " + regResourcePath, e);
         } finally {
-            IOUtils.closeQuietly(inSeqStream);
+            IOUtils.closeQuietly(seqStream);
         }
     }
 
