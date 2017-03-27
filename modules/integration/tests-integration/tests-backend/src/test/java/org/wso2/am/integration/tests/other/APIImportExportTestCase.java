@@ -66,7 +66,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -605,6 +604,9 @@ public class APIImportExportTestCase extends APIMIntegrationBaseTest {
         JSONObject apiObj = responseObj.getJSONObject("api");
         String provider = apiObj.getString("provider");
         Assert.assertEquals(provider, user.getUserName(), "Provider is not as expected when 'preserveProvider'=false");
+
+        //remove the API as we cannot import more than one API with same name and version
+        apiPublisher.deleteAPI(NOT_PRESERVE_PUBLISHER_API_NAME, API_VERSION, user.getUserName());
 
         //import the exported zip on different publisher
         importAPI(importUrl + "?preserveProvider=false", notPreservePublisherApiZip, publisherUser,
