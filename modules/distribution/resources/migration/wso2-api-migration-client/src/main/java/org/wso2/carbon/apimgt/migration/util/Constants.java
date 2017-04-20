@@ -90,6 +90,7 @@ public class Constants {
     public static final String NEW_SYNAPSE_API_VALUE_THROTTLE_HANDLER = "org.wso2.carbon.apimgt.gateway.handlers.throttling.ThrottleHandler";
     public static final String SYNAPSE_API_VALUE_LATENCY_STATS_HANDLER = "org.wso2.carbon.apimgt.gateway.handlers.common.APIMgtLatencyStatsHandler";
     public static final String SYNAPSE_API_VALUE_INLINE = "inline";
+    public static final String SYNAPSE_API_VALUE_IMPLEMENTATION_TYPE = "apiImplementationType";
     public static final String SYNAPSE_API_VALUE_INLINE_UPPERCASE = "INLINE";
     public static final String SYNAPSE_API_VALUE_ENPOINT = "ENDPOINT";
     public static final String SYNAPSE_API_VALUE_VERSION_TYPE_URL = "url";
@@ -244,6 +245,9 @@ public class Constants {
 
 	public static final String API_KEY_VALIDATOR_ENCRYPT_TOKENS =
             APIConstants.API_KEY_VALIDATOR + "EncryptPersistedTokens";
+
+    public static final String THROTTLING_CONFIGURATIONS ="ThrottlingConfigurations.";
+    public static final String ENABLE_THROTTLING_CONFIGURATIONS =THROTTLING_CONFIGURATIONS + "EnableAdvanceThrottling";
 
     public static final String SECURITY_DEFINITION__KEY = "securityDefinitions";
     public static final String SECURITY_DEFINITION_TYPE_KEY = "type";

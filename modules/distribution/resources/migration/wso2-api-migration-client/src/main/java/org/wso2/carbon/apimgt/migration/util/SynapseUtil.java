@@ -24,6 +24,9 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.wso2.carbon.apimgt.migration.client._110Specific.dto.APIHandlersDTO;
 import org.wso2.carbon.apimgt.migration.client._110Specific.dto.HandlerPropertyDTO;
+import org.wso2.carbon.apimgt.migration.client.internal.ServiceHolder;
+import org.wso2.carbon.apimgt.impl.APIConstants;
+import org.wso2.carbon.apimgt.impl.APIManagerConfiguration;
 
 import java.util.List;
 
@@ -131,5 +134,10 @@ public class SynapseUtil {
         }
 
         return null;
+    }
+
+    public static boolean isAdvancedThrottlingEnabled() {
+        APIManagerConfiguration config = ServiceHolder.getAPIManagerConfigurationService().getAPIManagerConfiguration();
+        return Boolean.parseBoolean(config.getFirstProperty(Constants.ENABLE_THROTTLING_CONFIGURATIONS));
     }
 }

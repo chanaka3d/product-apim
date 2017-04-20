@@ -246,7 +246,7 @@ public class ResourceUtil {
         corsHandler.setAttribute(Constants.SYNAPSE_API_ATTRIBUTE_CLASS, Constants.SYNAPSE_API_VALUE_CORS_HANDLER);
 
         Element property = document.createElementNS(Constants.SYNAPSE_API_XMLNS, Constants.SYNAPSE_API_ELEMENT_PROPERTY);
-        property.setAttribute(Constants.SYNAPSE_API_ATTRIBUTE_NAME, Constants.SYNAPSE_API_VALUE_INLINE);
+        property.setAttribute(Constants.SYNAPSE_API_ATTRIBUTE_NAME, Constants.SYNAPSE_API_VALUE_IMPLEMENTATION_TYPE);
 
         // If handlers element is null, that means this is a blocked API. Hence we need to add INLINE as the value.
         if (0 < sendElements.getLength() && handlersElement != null) {
@@ -595,5 +595,7 @@ public class ResourceUtil {
         }
         
     }
+
+
 
 }
