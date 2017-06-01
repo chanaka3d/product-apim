@@ -56,7 +56,7 @@ public class APIMANAGER5795_ApplicationUpdateByDifferentCaseUserTestCase extends
     private static final String EMAIL = "john.doe@test.com";
     private static final String APP_NAME = "NewApplication";
     private static final String APP_CALLBACK_URL = "http://werwrw/wewe";
-    private static final String APP_DESCRIPTION = "A new App";
+    private static final String APP_DESCRIPTION = "AnewApp";
 
     @BeforeClass(alwaysRun = true)
     public void init() throws APIManagerIntegrationTestException {
@@ -121,6 +121,7 @@ public class APIMANAGER5795_ApplicationUpdateByDifferentCaseUserTestCase extends
 
     @AfterClass(alwaysRun = true)
     public void destroy() throws Exception {
+        apiStore.login(UPPERCASE_USER_NAME, PASSWORD);
         apiStore.removeApplication(APP_NAME);
         userManagementClient.deleteUser(UPPERCASE_USER_NAME);
         super.cleanUp();
