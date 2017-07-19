@@ -168,6 +168,7 @@
             <class name="org.wso2.am.integration.tests.application.APIMANAGER5795_ApplicationUpdateByDifferentCaseUserTestCase"/>
             <class name="org.wso2.am.integration.tests.other.APIMANAGER5417PrototypedAPIsInMonetizedTestCase"/>
             <class name="org.wso2.am.integration.tests.other.APIMANAGER5433SharingApplicationTestCase"/>
+            <class name="org.wso2.am.integration.tests.other.StoreChangePasswordTestCase"/>
             <!--disable test case since it need to configure DAS -->
             <!--<class name="org.wso2.am.integration.tests.stats.APIMANAGER4731StoreStatisticsWhenTokenEncryptedTestCase"/>-->
         </classes>
