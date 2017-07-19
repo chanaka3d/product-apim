@@ -1233,4 +1233,26 @@ public class APIStoreRestClient {
             throw new APIManagerIntegrationTestException("Unable to get application page. Error: " + e.getMessage(), e);
         }
     }
+
+    /**
+     * Change password of the user
+     *
+     * @param username username of the user
+     * @param currentPassword current password of the user
+     * @param newPassword new password of the user
+     * @return
+     * @throws APIManagerIntegrationTestException if failed to change password
+     */
+    public HttpResponse changePassword(String username, String currentPassword, String newPassword)
+            throws APIManagerIntegrationTestException {
+        try {
+            return HTTPSClientUtils.doPost(new URL(
+                    backendURL + "store/site/blocks/user/user-info/ajax/user-info.jag?action=changePassword" +
+                            "&username=" + username + "&currentPassword=" +
+                            currentPassword + "&newPassword=" + newPassword), "", requestHeaders);
+
+        } catch (Exception e) {
+            throw new APIManagerIntegrationTestException("Unable to change password. Error: " + e.getMessage(), e);
+        }
+    }
 }
